@@ -38,7 +38,7 @@ const TaskForm = ({ onSubmit }) => {
         <option>Medium</option>
         <option>Low</option>
       </select>
-      <button className="bg-blue-500 text-white px-4 py-2 rounded">Add Task</button>
+      <button className="bg-blue-500 text-white px-4 py-3 md:py-2 rounded w-full md:w-auto">Add Task</button>
     </form>
   );
 };

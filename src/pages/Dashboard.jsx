@@ -27,27 +27,31 @@ import { useTasks } from "../context/TaskContext";
 
 const COLORS = ["#3B82F6", "#22C55E", "#FACC15", "#EF4444"];
 
-/* ---------- ACTIVITY LOGGER ---------- */
-function addActivityLog(action) {
-  const existingLogs = JSON.parse(localStorage.getItem("activityLog")) || [];
-  const newLog = {
-    id: Date.now(),
-    action,
-    timestamp: new Date().toLocaleString(),
-  };
-  const updatedLogs = [newLog, ...existingLogs];
-  localStorage.setItem("activityLog", JSON.stringify(updatedLogs));
-
-  // 🚀 Trigger an event so other components update instantly
-  window.dispatchEvent(new Event("activityLogUpdated"));
-}
-
 /* ---------- DASHBOARD COMPONENT ---------- */
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("analytics");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { darkMode } = useTheme();
   const { user } = useAuth();
+  const { addActivity } = useTasks();
+
+  // Unified activity logger - includes user context and persists properly
+  const addActivityLog = (message) => {
+    if (!user) return;
+    const existingLogs = JSON.parse(localStorage.getItem("activityLog")) || [];
+    const newLog = {
+      id: Date.now(),
+      user: user.username,
+      role: user.role,
+      message,
+      timestamp: new Date().toISOString(),
+    };
+    const updatedLogs = [newLog, ...existingLogs].slice(0, 200);
+    localStorage.setItem("activityLog", JSON.stringify(updatedLogs));
+    window.dispatchEvent(new Event("activityLogUpdated"));
+    // Also use TaskContext's addActivity for consistency
+    addActivity(message);
+  };
 
   const isAdmin = user?.role?.toLowerCase() === "admin";
 
@@ -67,19 +71,29 @@ export default function AdminDashboard() {
 
   return (
     <div
-      className={`flex h-screen ${
-        darkMode ? "bg-gray-950 text-gray-100" : "bg-gray-50 text-gray-900"
+      className={`flex h-screen flex-col md:flex-row transition-all duration-300 ${
+        darkMode ? "bg-gray-950 text-gray-100" : "bg-slate-50 text-slate-900"
       }`}
     >
+      {/* Mobile overlay to close sidebar */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/40 md:hidden z-10"
+          aria-hidden="true"
+        />
+      )}
       {/* ---------- SIDEBAR ---------- */}
       <div
         className={`fixed md:static z-20 top-0 left-0 h-full transition-transform transform
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          ${sidebarOpen ? "translate-x-0 md:block" : "-translate-x-full md:hidden"}
           ${
-            darkMode ? "bg-gray-900 border-r border-gray-800" : "bg-white border-r border-gray-200"
-          } w-64 shadow-lg`}
+            darkMode
+              ? "bg-gray-900 border-r border-gray-800"
+              : "bg-gradient-to-b from-sky-50 to-indigo-50 border-r border-slate-200"
+          } w-[80vw] sm:w-64 shadow-lg`}
       >
-        <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+        <div className={`p-5 border-b ${darkMode ? "border-gray-800" : "border-slate-200"} flex items-center justify-between`}>
           <h2 className="text-xl font-semibold tracking-tight">Task Manager</h2>
           <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-600">
             ✕
@@ -93,10 +107,10 @@ export default function AdminDashboard() {
               className={`flex items-center gap-3 w-full text-left px-4 py-2 rounded-lg font-medium transition-all
                 ${
                   activeTab === item.key
-                    ? "bg-blue-600 text-white shadow-sm"
+                    ? (darkMode ? "bg-blue-600 text-white shadow-sm" : "bg-sky-200 text-sky-900 shadow-sm")
                     : darkMode
                     ? "hover:bg-gray-800 hover:text-white"
-                    : "hover:bg-blue-100 text-gray-700"
+                    : "hover:bg-sky-100 text-slate-700"
                 }`}
             >
               {item.icon}
@@ -110,22 +124,22 @@ export default function AdminDashboard() {
       <div className="flex-1 flex flex-col overflow-y-auto">
         {/* Topbar */}
         <header
-          className={`flex items-center justify-between p-4 border-b 
-          ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}
+          className={`flex items-center justify-start gap-3 p-4 border-b sticky top-0 z-10 
+          ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white/80 backdrop-blur border-slate-200"}`}
         >
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden text-gray-700">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-700">
             <Menu size={22} />
           </button>
           <h1 className="text-xl font-semibold capitalize">{activeTab}</h1>
         </header>
 
         {/* Tab Content */}
-        <main className="p-6 flex-1 overflow-y-auto">
-          {activeTab === "users" && <UsersTab darkMode={darkMode} />}
-          {activeTab === "tasks" && <TasksTab darkMode={darkMode} />}
+        <main className="p-4 sm:p-6 flex-1 overflow-y-auto">
+          {activeTab === "users" && <UsersTab darkMode={darkMode} addActivityLog={addActivityLog} />}
+          {activeTab === "tasks" && <TasksTab darkMode={darkMode} addActivityLog={addActivityLog} />}
           {activeTab === "analytics" && <AnalyticsTab darkMode={darkMode} />}
           {activeTab === "activity" && <ActivityLogTab darkMode={darkMode} />}
-          {activeTab === "settings" && <SettingsTab darkMode={darkMode} />}
+          {activeTab === "settings" && <SettingsTab darkMode={darkMode} addActivityLog={addActivityLog} />}
         </main>
       </div>
     </div>
@@ -133,7 +147,7 @@ export default function AdminDashboard() {
 }
 
 /* ---------- USERS TAB ---------- */
-function UsersTab({ darkMode }) {
+function UsersTab({ darkMode, addActivityLog }) {
   const { users, setUsers } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", role: "User" });
   const [editingId, setEditingId] = useState(null);
@@ -146,7 +160,9 @@ function UsersTab({ darkMode }) {
       addActivityLog(`User updated: ${form.name}`);
       setEditingId(null);
     } else {
-      setUsers([...users, { id: Date.now(), ...form }]);
+      // default password for users created here
+      const username = form.name?.toLowerCase().replace(/\s+/g, "") || form.email.split("@")[0];
+      setUsers([...users, { id: Date.now(), name: form.name, username, email: form.email, role: form.role.toLowerCase(), password: "1234" }]);
       addActivityLog(`New user added: ${form.name}`);
     }
     setForm({ name: "", email: "", role: "User" });
@@ -200,43 +216,43 @@ function UsersTab({ darkMode }) {
         </button>
       </form>
 
-      <div className={`overflow-x-auto rounded-xl shadow ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-        <table className="min-w-full border-collapse">
-          <thead className={`${darkMode ? "bg-gray-700" : "bg-gray-100"} text-left`}>
+      {/* Users List */}
+      <div className={`overflow-x-auto rounded-lg shadow ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+        <table className="w-full text-sm sm:text-base border-collapse">
+          <thead className={`${darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"}`}>
             <tr>
-              <th className="p-3">Name</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Role</th>
-              <th className="p-3">Actions</th>
+              <th className="px-4 py-2 text-left">Name</th>
+              <th className="px-4 py-2 text-left">Email</th>
+              <th className="px-4 py-2 text-left">Role</th>
+              <th className="px-4 py-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {users.length > 0 ? (
+            {users && users.length > 0 ? (
               users.map((u) => (
-                <tr
-                  key={u.id}
-                  className={`border-b ${
-                    darkMode ? "border-gray-700 hover:bg-gray-700" : "hover:bg-gray-50"
-                  }`}
-                >
-                  <td className="p-3">{u.name}</td>
-                  <td className="p-3">{u.email}</td>
-                  <td className="p-3">{u.role}</td>
-                  <td className="p-3 flex gap-2">
-                    <button onClick={() => handleEdit(u)} className="text-blue-400 hover:text-blue-600">
-                      ✏️
+                <tr key={u.id} className={`border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+                  <td className="px-4 py-2">{u.name || u.username}</td>
+                  <td className="px-4 py-2">{u.email}</td>
+                  <td className="px-4 py-2 capitalize">{u.role}</td>
+                  <td className="px-4 py-2 space-x-2">
+                    <button
+                      onClick={() => handleEdit(u)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Edit
                     </button>
-                    <button onClick={() => handleDelete(u.id)} className="text-red-400 hover:text-red-600">
-                      🗑️
+                    <button
+                      onClick={() => handleDelete(u.id)}
+                      className="text-red-600 hover:underline"
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="4" className="text-center py-6 text-gray-400">
-                  No users found.
-                </td>
+                <td colSpan="4" className="px-4 py-4 text-center text-gray-500">No users found.</td>
               </tr>
             )}
           </tbody>
@@ -246,9 +262,10 @@ function UsersTab({ darkMode }) {
   );
 }
 
-function TasksTab({ darkMode }) {
+/* ---------- TASKS TAB ---------- */
+function TasksTab({ darkMode, addActivityLog }) {
   const { user } = useAuth();
-  const { tasks, addTask, updateTask, deleteTask } = useTasks();
+  const { tasks, addTask, updateTask, deleteTask, addComment, updateComment, deleteComment } = useTasks();
   const [form, setForm] = useState({
     title: "",
     assignedTo: "",
@@ -257,15 +274,14 @@ function TasksTab({ darkMode }) {
     dueDate: "",
   });
   const [editingId, setEditingId] = useState(null);
+  const [commentTaskId, setCommentTaskId] = useState(null);
   const [commentInput, setCommentInput] = useState("");
-  const [expandedTask, setExpandedTask] = useState(null);
+  const [editingCommentId, setEditingCommentId] = useState(null);
 
   const visibleTasks =
     user?.role?.toLowerCase() === "admin"
       ? tasks
-      : tasks.filter(
-          (t) => t.assignedTo?.toLowerCase() === user?.username?.toLowerCase()
-        );
+      : tasks.filter((t) => t.assignedTo?.toLowerCase() === user?.username?.toLowerCase());
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -283,69 +299,54 @@ function TasksTab({ darkMode }) {
       addActivityLog(`Task created: ${form.title}`);
     }
 
-    setForm({
-      title: "",
-      assignedTo: "",
-      status: "To Do",
-      priority: "Low",
-      dueDate: "",
-    });
+    setForm({ title: "", assignedTo: "", status: "To Do", priority: "Low", dueDate: "" });
   };
 
-  const handleDelete = (id) => {
-    const deletedTask = tasks.find((t) => t.id === id);
-    deleteTask(id);
-    addActivityLog(`Task deleted: ${deletedTask?.title || id}`);
-  };
-
-  /* ---------------- COMMENT HANDLER ---------------- */
-  const handleAddComment = (taskId) => {
-    if (!commentInput.trim()) return;
-
-    const task = tasks.find((t) => t.id === taskId);
-    const newComment = {
-      id: Date.now(),
-      text: commentInput,
-      author: user?.username || user?.email || "Unknown",
-      timestamp: new Date().toLocaleString(),
-    };
-
-    const updatedTask = {
-      ...task,
-      comments: [...(task.comments || []), newComment],
-    };
-
-    updateTask(taskId, updatedTask);
-    addActivityLog(`New comment on "${task.title}" by ${newComment.author}`);
-    setCommentInput("");
-  };
+const localToday = new Date();
+localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
+const today = localToday.toISOString().split("T")[0];
 
   return (
-    <div className={`p-6 rounded-xl ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
-      <h2 className="text-2xl font-semibold mb-5">Task Management</h2>
+  <div
+    className={`p-4 sm:p-6 rounded-xl ${
+      darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"
+    }`}
+  >
+    <h2 className="text-2xl font-semibold mb-5">Task Management</h2>
 
-      {/* ---------- ADMIN TASK FORM ---------- */}
-      {user?.role?.toLowerCase() === "admin" && (
+    {/* ---------- ADMIN TASK FORM ---------- */}
+    {user?.role?.toLowerCase() === "admin" && (
+      <>
         <form
           onSubmit={handleSubmit}
-          className={`flex flex-wrap gap-3 mb-6 p-4 rounded-xl shadow ${darkMode ? "bg-gray-800" : "bg-white"}`}
+          className={`grid grid-cols-1 md:grid-cols-6 gap-3 mb-6 p-4 rounded-xl shadow w-full ${
+            darkMode ? "bg-gray-800" : "bg-white"
+          }`}
         >
           <input
             type="text"
             placeholder="Task Title"
-            className={`border p-2 rounded flex-1 ${darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"}`}
+            className={`border p-2 rounded col-span-2 ${
+              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
+            }`}
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
+
           <input
             type="text"
             placeholder="Assigned To"
-            className={`border p-2 rounded flex-1 ${darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"}`}
+            className={`border p-2 rounded col-span-1 ${
+              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
+            }`}
             value={form.assignedTo}
             onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
           />
+
           <select
-            className={`border p-2 rounded ${darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"}`}
+            className={`border p-2 rounded col-span-1 ${
+              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
+            }`}
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
           >
@@ -353,8 +354,11 @@ function TasksTab({ darkMode }) {
             <option>In Progress</option>
             <option>Done</option>
           </select>
+
           <select
-            className={`border p-2 rounded ${darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"}`}
+            className={`border p-2 rounded col-span-1 ${
+              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
+            }`}
             value={form.priority}
             onChange={(e) => setForm({ ...form, priority: e.target.value })}
           >
@@ -362,119 +366,193 @@ function TasksTab({ darkMode }) {
             <option>Medium</option>
             <option>High</option>
           </select>
+
           <input
             type="date"
-            className={`border p-2 rounded ${darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"}`}
+            min={today}
+            className={`border p-2 rounded col-span-1 ${
+              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
+            }`}
             value={form.dueDate}
             onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
           />
-          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+
+          <button
+            type="submit"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md col-span-1"
+          >
             {editingId ? "Update" : "Add"}
           </button>
         </form>
-      )}
 
-      {/* ---------- TASK TABLE ---------- */}
-      <div className={`overflow-x-auto rounded-xl shadow ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-        <table className="w-full border-collapse">
-          <thead className={`${darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"}`}>
-            <tr>
-              <th className="p-3">Title</th>
-              <th className="p-3">Assigned To</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Priority</th>
-              <th className="p-3">Due Date</th>
-              <th className="p-3">Comments</th>
-              <th className="p-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleTasks.length > 0 ? (
-              visibleTasks.map((t) => (
-                <React.Fragment key={t.id}>
+        {/* ---------- TASK LIST ---------- */}
+        <div
+          className={`overflow-x-auto rounded-lg shadow w-full ${
+            darkMode ? "bg-gray-800" : "bg-white"
+          }`}
+        >
+          <table className="w-full text-sm sm:text-base border-collapse">
+            <thead
+              className={`${
+                darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"
+              }`}
+            >
+              <tr>
+                <th className="px-4 py-2 text-left">Title</th>
+                <th className="px-4 py-2 text-left">Assigned To</th>
+                <th className="px-4 py-2 text-left">Status</th>
+                <th className="px-4 py-2 text-left">Priority</th>
+                <th className="px-4 py-2 text-left">Due Date</th>
+                <th className="px-4 py-2 text-left">Comments</th>
+                <th className="px-4 py-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleTasks.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-gray-500">
+                    No tasks available.
+                  </td>
+                </tr>
+              ) : (
+                visibleTasks.map((task) => (
+                  <React.Fragment key={task.id}>
                   <tr
-                    className={`${darkMode ? "border-gray-700 hover:bg-gray-700" : "border-b hover:bg-gray-50"}`}
+                    className={`border-b ${
+                      darkMode ? "border-gray-700" : "border-gray-200"
+                    }`}
                   >
-                    <td className="p-3">{t.title}</td>
-                    <td className="p-3">{t.assignedTo}</td>
-                    <td className="p-3">{t.status}</td>
-                    <td className="p-3">{t.priority}</td>
-                    <td className="p-3">{t.dueDate}</td>
-                    <td className="p-3">
+                    <td className="px-4 py-2">{task.title}</td>
+                    <td className="px-4 py-2">{task.assignedTo}</td>
+                    <td className="px-4 py-2">{task.status}</td>
+                    <td className="px-4 py-2">{task.priority}</td>
+                    <td className="px-4 py-2">
+                      {task.dueDate
+                        ? new Date(task.dueDate).toLocaleDateString()
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-2">
                       <button
-                        onClick={() => setExpandedTask(expandedTask === t.id ? null : t.id)}
-                        className="text-blue-500 hover:underline"
+                        onClick={() => { setCommentTaskId(task.id); setEditingCommentId(null); setCommentInput(""); }}
+                        className={`${darkMode ? "text-blue-300" : "text-blue-700"} hover:underline`}
                       >
-                        {expandedTask === t.id ? "Hide" : "View"} ({t.comments?.length || 0})
+                        {Array.isArray(task.comments) ? `${task.comments.length} comments` : "Add comment"}
                       </button>
                     </td>
-                    <td className="p-3">
-                      <button onClick={() => handleDelete(t.id)} className="text-red-400 hover:text-red-600">
-                        🗑️
+                    <td className="px-4 py-2 space-x-2">
+                      <button
+                        onClick={() => {
+                          setForm(task);
+                          setEditingId(task.id);
+                        }}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteTask(task.id)}
+                        className="text-red-600 hover:underline"
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>
-
-                  {/* ---------- COMMENTS SECTION ---------- */}
-                  {expandedTask === t.id && (
-                    <tr>
-                      <td colSpan="7" className={`p-4 ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
+                  {commentTaskId === task.id && (
+                    <tr className={`${darkMode ? "bg-gray-900" : "bg-slate-50"}`}>
+                      <td colSpan="7" className="px-4 py-3">
                         <div className="space-y-3">
-                          <h4 className="font-semibold mb-2">Comments</h4>
-
-                          {t.comments && t.comments.length > 0 ? (
-                            <ul className="space-y-2">
-                              {t.comments.map((c) => (
-                                <li
-                                  key={c.id}
-                                  className={`p-2 rounded border ${darkMode ? "border-gray-700" : "border-gray-200"}`}
-                                >
-                                  <div className="text-sm text-gray-400">
-                                    <strong>{c.author}</strong> • {c.timestamp}
-                                  </div>
-                                  <div>{c.text}</div>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="text-gray-400 italic">No comments yet.</p>
-                          )}
-
-                          {/* Add Comment Box */}
-                          <div className="flex gap-2 mt-3">
+                          <div className="flex gap-2">
                             <input
-                              type="text"
-                              placeholder="Write a comment..."
-                              className={`flex-1 p-2 border rounded ${darkMode ? "bg-gray-800 text-white" : "bg-white text-black"}`}
                               value={commentInput}
                               onChange={(e) => setCommentInput(e.target.value)}
+                              placeholder={editingCommentId ? "Update comment" : "Write a comment"}
+                              className={`flex-1 p-2 border rounded ${darkMode ? "bg-gray-800 border-gray-700 text-gray-100" : "bg-white border-slate-300"}`}
                             />
                             <button
-                              onClick={() => handleAddComment(t.id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+                              onClick={() => {
+                                if (!commentInput.trim()) return;
+                                if (editingCommentId) {
+                                  updateComment(task.id, editingCommentId, commentInput.trim());
+                                  addActivityLog(`Comment updated on task: ${task.title || task.id}`);
+                                } else {
+                                  // If user prefixed input with @author, attempt to thread under last selected edited comment
+                                  const potentialParent = editingCommentId ? editingCommentId : null;
+                                  addComment(task.id, commentInput.trim(), potentialParent);
+                                  addActivityLog(`Comment added on task: ${task.title || task.id}`);
+                                }
+                                setCommentInput("");
+                                setEditingCommentId(null);
+                              }}
+                              className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
                             >
-                              Add
+                              {editingCommentId ? "Update" : "Add"}
                             </button>
+                            <button onClick={() => { setCommentTaskId(null); setCommentInput(""); setEditingCommentId(null); }} className={`px-3 py-2 rounded ${darkMode ? "bg-gray-700 text-white" : "bg-slate-200 text-slate-800"}`}>Close</button>
                           </div>
+                          {(() => {
+                            const buildTree = (comments) => {
+                              const nodesById = new Map();
+                              const roots = [];
+                              (comments || []).forEach((c) => nodesById.set(c.id, { ...c, children: [] }));
+                              nodesById.forEach((node) => {
+                                if (node.parentId && nodesById.has(node.parentId)) {
+                                  nodesById.get(node.parentId).children.push(node);
+                                } else {
+                                  roots.push(node);
+                                }
+                              });
+                              return roots;
+                            };
+                            const tree = buildTree(task.comments);
+                            const RenderNode = ({ node, level = 0 }) => (
+                              <li className={`p-2 rounded border ${darkMode ? "border-gray-700" : "border-slate-200"} ${level ? "ml-6" : ""}`}>
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="text-sm font-medium">{node.author}</div>
+                                    <div className="text-xs opacity-70">{new Date(node.createdAt).toLocaleString()}</div>
+                                  </div>
+                                  <div className="space-x-2">
+                                    <button onClick={() => { setEditingCommentId(node.id); setCommentInput(node.text); }} className={`${darkMode ? "text-blue-300" : "text-blue-700"} hover:underline`}>Edit</button>
+                                    <button onClick={() => setCommentInput(`@${node.author} `)} className={`${darkMode ? "text-emerald-300" : "text-emerald-700"} hover:underline`}>Reply</button>
+                                    {user?.role?.toLowerCase() === "admin" && (
+                                      <button onClick={() => { deleteComment(task.id, node.id); addActivityLog(`Comment deleted on task: ${task.title || task.id}`); }} className={`${darkMode ? "text-red-300" : "text-red-700"} hover:underline`}>Delete</button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="mt-1 text-sm">{node.text}</div>
+                                {node.children?.length > 0 && (
+                                  <ul className="space-y-2 mt-2">
+                                    {node.children.map((child) => (
+                                      <RenderNode key={child.id} node={child} level={level + 1} />
+                                    ))}
+                                  </ul>
+                                )}
+                              </li>
+                            );
+                            return (
+                              <ul className="space-y-2">
+                                {tree.length > 0 ? tree.map((n) => <RenderNode key={n.id} node={n} />) : <li className="text-sm opacity-70">No comments yet.</li>}
+                              </ul>
+                            );
+                          })()}
+                          <div className="text-xs opacity-70">Tip: To reply to a specific comment, click Reply; your next Add will nest under that comment.</div>
                         </div>
                       </td>
                     </tr>
                   )}
-                </React.Fragment>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="7" className="text-center py-6 text-gray-400 italic">
-                  No tasks available.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+                  </React.Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </>
+    )}
+  </div>
+);
+
 }
+
 
 /* ---------- ANALYTICS TAB ---------- */
 function AnalyticsTab({ darkMode }) {
@@ -501,10 +579,10 @@ function AnalyticsTab({ darkMode }) {
           <button
             key={status}
             className={`px-4 py-2 rounded ${filterStatus === status
-              ? "bg-blue-500 text-white"
+              ? (darkMode ? "bg-blue-500 text-white" : "bg-sky-300 text-sky-900")
               : darkMode
                 ? "bg-gray-700 text-gray-100"
-                : "bg-gray-200 text-gray-700"}`}
+                : "bg-slate-200 text-slate-700"}`}
             onClick={() => setFilterStatus(status)}
           >
             {status}
@@ -513,15 +591,15 @@ function AnalyticsTab({ darkMode }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-        <div className="p-4 bg-blue-500 text-white rounded-lg shadow">
+        <div className={`p-4 rounded-lg shadow ${darkMode ? "bg-blue-500 text-white" : "bg-sky-200 text-sky-900"}`}>
           <h3 className="text-lg font-medium">Total Tasks</h3>
           <p className="text-2xl font-bold">{totalTasks}</p>
         </div>
-        <div className="p-4 bg-green-500 text-white rounded-lg shadow">
+        <div className={`p-4 rounded-lg shadow ${darkMode ? "bg-green-500 text-white" : "bg-emerald-200 text-emerald-900"}`}>
           <h3 className="text-lg font-medium">Completed Tasks</h3>
           <p className="text-2xl font-bold">{completedTasks}</p>
         </div>
-        <div className="p-4 bg-red-500 text-white rounded-lg shadow">
+        <div className={`p-4 rounded-lg shadow ${darkMode ? "bg-red-500 text-white" : "bg-rose-200 text-rose-900"}`}>
           <h3 className="text-lg font-medium">Overdue Tasks</h3>
           <p className="text-2xl font-bold">{overdueTasks}</p>
         </div>
@@ -563,22 +641,35 @@ function ActivityLogTab({ darkMode }) {
   const [activityLog, setActivityLog] = useState([]);
 
   useEffect(() => {
-  const loadLogs = () => {
-    const saved = JSON.parse(localStorage.getItem("activityLog")) || [];
-    setActivityLog(saved);
-  };
+    const loadLogs = () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem("activityLog")) || [];
+        // Ensure all logs are in the unified format with user/role/message
+        const normalized = saved.map((log) => ({
+          id: log.id || Date.now(),
+          user: log.user || "System",
+          role: log.role || "unknown",
+          message: log.message || log.action || "Activity logged",
+          timestamp: log.timestamp || new Date().toISOString(),
+        }));
+        setActivityLog(normalized);
+      } catch (e) {
+        console.error("Error loading activity logs:", e);
+        setActivityLog([]);
+      }
+    };
 
-  loadLogs();
+    loadLogs();
 
-  // 🔁 Listen for both localStorage + custom event changes
-  window.addEventListener("activityLogUpdated", loadLogs);
-  window.addEventListener("storage", loadLogs);
+    // 🔁 Listen for both localStorage + custom event changes
+    window.addEventListener("activityLogUpdated", loadLogs);
+    window.addEventListener("storage", loadLogs);
 
-  return () => {
-    window.removeEventListener("activityLogUpdated", loadLogs);
-    window.removeEventListener("storage", loadLogs);
-  };
-}, []);
+    return () => {
+      window.removeEventListener("activityLogUpdated", loadLogs);
+      window.removeEventListener("storage", loadLogs);
+    };
+  }, []);
 
 
   return (
@@ -588,11 +679,13 @@ function ActivityLogTab({ darkMode }) {
         <ul className="space-y-3 max-h-[70vh] overflow-y-auto">
           {activityLog.map((log) => (
             <li
-              key={log.id}
+              key={log.id || log.timestamp}
               className={`p-3 rounded-lg border ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}
             >
-              <div className="font-medium">{log.action}</div>
-              <div className="text-sm text-gray-400">{log.timestamp}</div>
+              <div className="font-medium">{log.message || log.action || "Activity"}</div>
+              <div className="text-sm text-gray-400">
+                {log.user ? `${log.user}${log.role ? ` (${log.role})` : ""} • ` : ""}{new Date(log.timestamp || Date.now()).toLocaleString()}
+              </div>
             </li>
           ))}
         </ul>
@@ -604,7 +697,7 @@ function ActivityLogTab({ darkMode }) {
 }
 
 /* ---------- SETTINGS TAB ---------- */
-function SettingsTab({ darkMode }) {
+function SettingsTab({ darkMode, addActivityLog }) {
   const { user } = useAuth();
   const [form, setForm] = useState({ name: user?.name || "", email: user?.email || "" });
   const [message, setMessage] = useState("");

@@ -3,16 +3,20 @@ import { createContext, useContext, useState, useEffect } from "react";
 export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  // Reset users: 2 users + 2 admins
+  // Load users from storage or seed defaults once
   const [users, setUsers] = useState(() => {
-    const newUsers = [
-      { id: Date.now() + 1, name: "Alice", username: "alice", email: "alice@example.com", password: "123", role: "user" },
-      { id: Date.now() + 2, name: "Charlie", username: "charlie", email: "charlie@example.com", password: "123", role: "user" },
-      { id: Date.now() + 3, name: "Bob", username: "bob", email: "bob@example.com", password: "123", role: "admin" },
-      { id: Date.now() + 4, name: "David", username: "david", email: "david@example.com", password: "123", role: "admin" },
+    try {
+      const saved = localStorage.getItem("users");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    const seeded = [
+      { id: Date.now() + 1, name: "Alice", username: "alice", email: "alice@example.com", password: "1234", role: "user" },
+      { id: Date.now() + 2, name: "Charlie", username: "charlie", email: "charlie@example.com", password: "1234", role: "user" },
+      { id: Date.now() + 3, name: "Bob", username: "bob", email: "bob@example.com", password: "1234", role: "admin" },
+      { id: Date.now() + 4, name: "David", username: "david", email: "david@example.com", password: "1234", role: "admin" },
     ];
-    localStorage.setItem("users", JSON.stringify(newUsers));
-    return newUsers;
+    localStorage.setItem("users", JSON.stringify(seeded));
+    return seeded;
   });
 
   const [user, setUser] = useState(null);

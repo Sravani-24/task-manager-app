@@ -6,7 +6,7 @@ import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from "recha
 
 export default function UserPage() {
   const { user } = useAuth();
-const { getUserTasks, updateTask, deleteTask, getUserActivity } = useTasks();
+const { getUserTasks, updateTask, deleteTask, getUserActivity, addComment } = useTasks();
   const { darkMode } = useTheme();
 
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -16,6 +16,8 @@ const { getUserTasks, updateTask, deleteTask, getUserActivity } = useTasks();
     description: "",
     status: "",
   });
+  const [openCommentsTaskId, setOpenCommentsTaskId] = useState(null);
+  const [commentInput, setCommentInput] = useState("");
 
   const userTasks = getUserTasks();
 const activityLogs = getUserActivity ? getUserActivity() : [];
@@ -64,8 +66,8 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
 
   return (
     <div
-      className={`p-8 min-h-screen transition-colors duration-300 ${
-        darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
+      className={`p-6 sm:p-8 min-h-screen transition-colors duration-300 ${
+        darkMode ? "bg-gray-900 text-white" : "bg-gradient-to-b from-slate-50 to-sky-50 text-slate-900"
       }`}
     >
       <h1 className="text-3xl font-bold mb-6">
@@ -73,17 +75,17 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
       </h1>
 
       {/* --- Tab Buttons --- */}
-      <div className="flex space-x-4 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6">
         {["dashboard", "tasks", "activity"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg font-semibold capitalize ${
+            className={`px-4 py-2 rounded-lg font-semibold capitalize transition-colors ${
               activeTab === tab
-                ? "bg-blue-600 text-white"
+                ? (darkMode ? "bg-blue-600 text-white" : "bg-sky-300 text-sky-900")
                 : darkMode
                 ? "bg-gray-700 text-gray-300"
-                : "bg-gray-200 text-gray-700"
+                : "bg-slate-200 text-slate-700"
             }`}
           >
             {tab === "dashboard"
@@ -99,7 +101,7 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
       {activeTab === "dashboard" && (
         <div
           className={`p-6 rounded-2xl shadow ${
-            darkMode ? "bg-gray-800" : "bg-white"
+            darkMode ? "bg-gray-800" : "bg-white/90 backdrop-blur"
           }`}
         >
           <h2 className="text-2xl font-semibold mb-4">📊 Dashboard Overview</h2>
@@ -109,19 +111,19 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
             Quick visual summary of your tasks.
           </p>
 
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             <div
               className={`p-4 rounded-xl text-center ${
-                darkMode ? "bg-gray-700" : "bg-gray-100"
-              }`}
+                darkMode ? "bg-gray-700" : "bg-sky-100 text-sky-900"
+              } shadow`}
             >
               <h3 className="text-lg font-semibold">Total Tasks</h3>
               <p className="text-2xl font-bold">{userTasks.length}</p>
             </div>
             <div
               className={`p-4 rounded-xl text-center ${
-                darkMode ? "bg-gray-700" : "bg-gray-100"
-              }`}
+                darkMode ? "bg-gray-700" : "bg-emerald-100 text-emerald-900"
+              } shadow`}
             >
               <h3 className="text-lg font-semibold">Completed</h3>
               <p className="text-2xl font-bold">
@@ -130,8 +132,8 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
             </div>
             <div
               className={`p-4 rounded-xl text-center ${
-                darkMode ? "bg-gray-700" : "bg-gray-100"
-              }`}
+                darkMode ? "bg-gray-700" : "bg-amber-100 text-amber-900"
+              } shadow`}
             >
               <h3 className="text-lg font-semibold">In Progress</h3>
               <p className="text-2xl font-bold">
@@ -173,7 +175,7 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
       {activeTab === "tasks" && (
         <div
           className={`p-6 rounded-2xl shadow transition-colors ${
-            darkMode ? "bg-gray-800" : "bg-white"
+            darkMode ? "bg-gray-800" : "bg-white/90 backdrop-blur"
           }`}
         >
           <h2 className="text-2xl font-semibold mb-4">✅ My Tasks</h2>
@@ -187,8 +189,8 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
               {userTasks.map((task) => (
                 <li
                   key={task.id}
-                  className={`border p-4 rounded-xl transition-colors ${
-                    darkMode ? "border-gray-700" : "border-gray-300"
+                  className={`border p-4 rounded-xl transition-colors shadow ${
+                    darkMode ? "border-gray-700" : "border-slate-200"
                   }`}
                 >
                   {editingTaskId === task.id ? (
@@ -243,13 +245,13 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
 
                       <div className="flex space-x-3">
                         <button
-                          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                          className={`${darkMode ? "bg-green-600 hover:bg-green-700 text-white" : "bg-emerald-200 hover:bg-emerald-300 text-emerald-900"} px-4 py-2 rounded-md`}
                           onClick={() => handleSave(task.id)}
                         >
                           Save
                         </button>
                         <button
-                          className="px-4 py-2 bg-gray-400 text-white rounded-md hover:bg-gray-500"
+                          className={`${darkMode ? "bg-gray-500 hover:bg-gray-600 text-white" : "bg-slate-200 hover:bg-slate-300 text-slate-800"} px-4 py-2 rounded-md`}
                           onClick={() => setEditingTaskId(null)}
                         >
                           Cancel
@@ -257,7 +259,7 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
                       </div>
                     </div>
                   ) : (
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-start gap-4">
                       <div>
                         <h3 className="font-semibold text-lg">{task.title}</h3>
                         <p
@@ -278,17 +280,64 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
                         >
                           {task.status || "Pending"}
                         </span>
+                        {/* Comments teaser and panel toggle */}
+                        <div className="mt-3">
+                          <button
+                            onClick={() => {
+                              setOpenCommentsTaskId(
+                                openCommentsTaskId === task.id ? null : task.id
+                              );
+                            }}
+                            className={`${darkMode ? "text-blue-300" : "text-blue-700"} hover:underline`}
+                          >
+                            {Array.isArray(task.comments) ? `${task.comments.length} comments` : "Add comment"}
+                          </button>
+                        </div>
+                        {openCommentsTaskId === task.id && (
+                          <div className={`mt-3 p-3 rounded ${darkMode ? "bg-gray-900" : "bg-slate-50"}`}>
+                            <div className="flex gap-2">
+                              <input
+                                value={commentInput}
+                                onChange={(e) => setCommentInput(e.target.value)}
+                                placeholder="Write a comment"
+                                className={`flex-1 p-2 border rounded ${darkMode ? "bg-gray-800 border-gray-700 text-gray-100" : "bg-white border-slate-300"}`}
+                              />
+                              <button
+                                onClick={() => {
+                                  if (!commentInput.trim()) return;
+                                  addComment(task.id, commentInput.trim());
+                                  setCommentInput("");
+                                }}
+                                className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                              >
+                                Add
+                              </button>
+                              <button onClick={() => { setOpenCommentsTaskId(null); setCommentInput(""); }} className={`px-3 py-2 rounded ${darkMode ? "bg-gray-700 text-white" : "bg-slate-200 text-slate-800"}`}>Close</button>
+                            </div>
+                            <ul className="space-y-2 mt-3">
+                              {(task.comments || []).map((c) => (
+                                <li key={c.id} className={`p-2 rounded border ${darkMode ? "border-gray-700" : "border-slate-200"}`}>
+                                  <div className="text-sm">{c.text}</div>
+                                  <div className="text-xs opacity-70 mt-1">by {c.author} • {new Date(c.createdAt).toLocaleString()}</div>
+                                </li>
+                              ))}
+                              {(!task.comments || task.comments.length === 0) && (
+                                <li className="text-sm opacity-70">No comments yet.</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
                       </div>
-                      <div className="space-x-2">
+                      <div className="space-x-2 whitespace-nowrap">
                         <button
-                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                          className={`${darkMode ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-sky-200 hover:bg-sky-300 text-sky-900"} px-4 py-2 rounded-md`}
                           onClick={() => handleEdit(task)}
                         >
                           Edit
                         </button>
                         {user.role === "admin" && (
                           <button
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                            className={`${darkMode ? "bg-red-600 hover:bg-red-700 text-white" : "bg-rose-200 hover:bg-rose-300 text-rose-900"} px-4 py-2 rounded-md`}
                             onClick={() => handleDelete(task.id)}
                           >
                             Delete
@@ -308,7 +357,7 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
       {activeTab === "activity" && (
         <div
           className={`p-6 rounded-2xl shadow ${
-            darkMode ? "bg-gray-800" : "bg-white"
+            darkMode ? "bg-gray-800" : "bg-white/90 backdrop-blur"
           }`}
         >
           <h2 className="text-2xl font-semibold mb-4">🧾 My Activity Log</h2>
@@ -317,21 +366,21 @@ const activityLogs = getUserActivity ? getUserActivity() : [];
               No activity yet.
             </p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-3 max-h-[70vh] overflow-y-auto">
               {activityLogs.map((log, index) => (
                 <li
-                  key={index}
+                  key={log.id || index}
                   className={`border p-3 rounded-lg ${
-                    darkMode ? "border-gray-700" : "border-gray-300"
+                    darkMode ? "border-gray-700 bg-gray-900" : "border-slate-200 bg-slate-50"
                   }`}
                 >
-                  <p className="font-medium">{log.message}</p>
+                  <p className="font-medium">{log.message || log.action || "Activity"}</p>
                   <span
                     className={`text-sm ${
                       darkMode ? "text-gray-400" : "text-gray-500"
                     }`}
                   >
-                    {new Date(log.timestamp).toLocaleString()}
+                    {log.user ? `${log.user}${log.role ? ` (${log.role})` : ""} • ` : ""}{new Date(log.timestamp || Date.now()).toLocaleString()}
                   </span>
                 </li>
               ))}

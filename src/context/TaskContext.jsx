@@ -16,12 +16,13 @@ export function TaskProvider({ children }) {
     }
   });
 
-  const [activityLogs, setActivityLogs] = useState(() => {
+  // Global activity log (single source of truth)
+  const [activityLog, setActivityLog] = useState(() => {
     try {
-      const saved = localStorage.getItem("activityLogs");
-      return saved ? JSON.parse(saved) : {};
+      const saved = localStorage.getItem("activityLog");
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return {};
+      return [];
     }
   });
 
@@ -31,8 +32,8 @@ export function TaskProvider({ children }) {
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem("activityLogs", JSON.stringify(activityLogs));
-  }, [activityLogs]);
+    localStorage.setItem("activityLog", JSON.stringify(activityLog));
+  }, [activityLog]);
 
   // ✅ Add new task
   const addTask = (task) => {
@@ -42,7 +43,8 @@ export function TaskProvider({ children }) {
       id: Date.now(),
       user: user.username,
       createdAt: new Date().toISOString(),
-      status: "Pending",
+      status: task.status || "Pending",
+      comments: Array.isArray(task.comments) ? task.comments : [],
     };
     setTasks((prev) => [...prev, newTask]);
     addActivity(`Created a new task: ${task.title}`);
@@ -63,27 +65,82 @@ export function TaskProvider({ children }) {
     addActivity(`Deleted task: ${task?.title || id}`);
   };
 
+  // ---------- Comments API ----------
+  const addComment = (taskId, text, parentId = null) => {
+    if (!user || !text) return;
+    const task = tasks.find((t) => t.id === taskId);
+    const taskTitle = task?.title || `Task ${taskId}`;
+    const newComment = {
+      id: Date.now(),
+      author: user.username,
+      text,
+      createdAt: new Date().toISOString(),
+      parentId,
+    };
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, comments: [...(t.comments || []), newComment] } : t));
+    addActivity(`Commented on task: ${taskTitle}`);
+  };
+
+  const updateComment = (taskId, commentId, newText) => {
+    if (!user || !newText) return;
+    const task = tasks.find((t) => t.id === taskId);
+    const taskTitle = task?.title || `Task ${taskId}`;
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== taskId) return t;
+      const updated = (t.comments || []).map((c) => c.id === commentId ? { ...c, text: newText, updatedAt: new Date().toISOString() } : c);
+      return { ...t, comments: updated };
+    }));
+    addActivity(`Updated a comment on task: ${taskTitle}`);
+  };
+
+  const deleteComment = (taskId, commentId) => {
+    if (!user || user.role !== "admin") return; // only admins can delete
+    const task = tasks.find((t) => t.id === taskId);
+    const taskTitle = task?.title || `Task ${taskId}`;
+    // remove target comment and its threaded replies
+    setTasks((prev) => prev.map((t) => {
+      if (t.id !== taskId) return t;
+      const toRemove = new Set([commentId]);
+      const all = t.comments || [];
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const c of all) {
+          if (c.parentId && toRemove.has(c.parentId) && !toRemove.has(c.id)) {
+            toRemove.add(c.id);
+            changed = true;
+          }
+        }
+      }
+      const remaining = all.filter((c) => !toRemove.has(c.id));
+      return { ...t, comments: remaining };
+    }));
+    addActivity(`Deleted a comment on task: ${taskTitle}`);
+  };
+
   // ✅ Add activity (per user)
   const addActivity = (message) => {
     if (!user) return;
-    const username = user.username;
     const newEntry = {
+      id: Date.now(),
+      user: user.username,
+      role: user.role,
       message,
       timestamp: new Date().toISOString(),
     };
-    setActivityLogs((prev) => {
-      const userLogs = prev[username] || [];
-      return {
-        ...prev,
-        [username]: [newEntry, ...userLogs.slice(0, 49)], // keep last 50
-      };
-    });
+    setActivityLog((prev) => [newEntry, ...prev].slice(0, 200));
+    try {
+      const existing = JSON.parse(localStorage.getItem("activityLog")) || [];
+      localStorage.setItem("activityLog", JSON.stringify([newEntry, ...existing].slice(0, 200)));
+    } catch {}
+    // notify listeners (ActivityLogTab listens for this)
+    window.dispatchEvent(new Event("activityLogUpdated"));
   };
 
   // ✅ Get current user's activity logs
   const getUserActivity = () => {
     if (!user) return [];
-    return activityLogs[user.username] || [];
+    return (activityLog || []).filter((e) => e.user === user.username);
   };
 
   // ✅ Backward compatible alias for older components
@@ -118,11 +175,14 @@ export function TaskProvider({ children }) {
         addTask,
         updateTask,
         deleteTask,
+        addComment,
+        updateComment,
+        deleteComment,
         getUserTasks,
         getUserDashboardStats,
         addActivity,
         getUserActivity,
-        getActivityLogs, // alias for compatibility
+        getActivityLogs: getUserActivity,
       }}
     >
       {children}
