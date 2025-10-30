@@ -12,17 +12,17 @@ import { TaskProvider } from "./context/TaskContext";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import "./styles.css";
 
-// ✅ Main App component
+// Main App component
 const App = () => {
   return (
     <BrowserRouter>
       <Navbar />
       <Routes>
-        {/* Public routes */}
+        {/* Public */}
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Protected Dashboard */}
+        {/* Protected */}
         <Route
           path="/dashboard"
           element={
@@ -32,7 +32,6 @@ const App = () => {
           }
         />
 
-        {/* User-specific page */}
         <Route
           path="/user"
           element={
@@ -42,7 +41,6 @@ const App = () => {
           }
         />
 
-        {/* Analytics – only admins */}
         <Route
           path="/analytics"
           element={
@@ -52,25 +50,32 @@ const App = () => {
           }
         />
 
-        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
 };
 
-// ✅ Root wrapper
+// Wrap to apply Theme & Background
 const RootApp = () => {
   const { darkMode } = useTheme();
 
+  React.useEffect(() => {
+    document.body.style.backgroundColor = darkMode ? "#0f172a" : "#f8fafc";
+  }, [darkMode]);
+
   return (
-    <div className={`min-h-screen transition-colors ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
+    <div
+      className={`min-h-screen transition-colors ${
+        darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"
+      }`}
+    >
       <App />
     </div>
   );
 };
 
-// ✅ Final export
+// Root export
 const MainApp = () => (
   <ThemeProvider>
     <AuthProvider>

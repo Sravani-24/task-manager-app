@@ -1,84 +1,101 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { auth, db } from "../firebaseConfig";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  // Load users from storage or seed defaults once
-  const [users, setUsers] = useState(() => {
-    try {
-      const saved = localStorage.getItem("users");
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    const seeded = [
-      { id: Date.now() + 1, name: "Alice", username: "alice", email: "alice@example.com", password: "1234", role: "user" },
-      { id: Date.now() + 2, name: "Charlie", username: "charlie", email: "charlie@example.com", password: "1234", role: "user" },
-      { id: Date.now() + 3, name: "Bob", username: "bob", email: "bob@example.com", password: "1234", role: "admin" },
-      { id: Date.now() + 4, name: "David", username: "david", email: "david@example.com", password: "1234", role: "admin" },
-    ];
-    localStorage.setItem("users", JSON.stringify(seeded));
-    return seeded;
-  });
-
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // ✅ Restore logged-in user on refresh
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const ref = doc(db, "users", firebaseUser.uid);
+          const snap = await getDoc(ref);
+
+          if (snap.exists()) {
+            setUser({ uid: firebaseUser.uid, ...snap.data() });
+          } else {
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: "user", 
+            });
+          }
+        } catch (err) {
+          console.error("Auth Fetch Error:", err);
+        }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Save users to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem("users", JSON.stringify(users));
-  }, [users]);
+  const register = async (email, password, username, role = "user") => {
+    const res = await createUserWithEmailAndPassword(auth, email, password);
 
-  // ✅ Login function
-  const login = (usernameOrEmail, password) => {
-    const existingUser = users.find(
-      (u) =>
-        (u.username === usernameOrEmail || u.email === usernameOrEmail) &&
-        u.password === password
-    );
+    const userData = {
+      username,
+      email,
+      role: role.toLowerCase(),
+      createdAt: new Date(),
+    };
 
-    if (existingUser) {
-      const loggedInUser = {
-        username: existingUser.username,
-        email: existingUser.email,
-        role: existingUser.role.toLowerCase(), // lowercase role
-      };
-      setUser(loggedInUser);
-      localStorage.setItem("user", JSON.stringify(loggedInUser)); // store user
-      return true;
-    }
-    return false;
+    await setDoc(doc(db, "users", res.user.uid), userData);
+
+    setUser({ uid: res.user.uid, ...userData });
+    return { uid: res.user.uid, ...userData };
   };
 
-  const logout = () => {
+  const login = async (email, password) => {
+    const res = await signInWithEmailAndPassword(auth, email, password);
+    const snap = await getDoc(doc(db, "users", res.user.uid));
+
+    if (!snap.exists()) throw new Error("User record missing in Firestore");
+
+    const loggedUser = { uid: res.user.uid, ...snap.data() };
+    setUser(loggedUser);
+    return loggedUser;
+  };
+const getAllUsers = async () => {
+  try {
+    const usersRef = collection(db, "users");
+    const querySnapshot = await getDocs(usersRef);
+
+    const usersList = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return usersList;
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    return [];
+  }
+};
+  // ✅ Logout
+  const logout = async () => {
+    await signOut(auth);
     setUser(null);
-    localStorage.removeItem("user"); // ✅ Clear from storage on logout
-  };
-
-  // Register function
-  const register = (username, password, email, role) => {
-    if (!username || !password || !email || !role) return false;
-    const exists = users.find((u) => u.username === username || u.email === email);
-    if (exists) return false;
-
-    const newUser = { id: Date.now(), name: username, username, password, email, role: role.toLowerCase() };
-    setUsers([...users, newUser]);
-    return true;
   };
 
   return (
-    <AuthContext.Provider value={{ user, users, setUsers, login, logout, register }}>
-
-      {children}
+<AuthContext.Provider value={{ user, register, login, logout, getAllUsers }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export const useAuth = () => useContext(AuthContext);

@@ -2,12 +2,12 @@ import React from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, Legend, LineChart, Line, ResponsiveContainer
 } from "recharts";
-import { useTasks } from "../context/TaskContext"; // assuming you have a context to get tasks
+import { useTasks } from "../context/TaskContext"; 
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
 export default function Analytics() {
-  const { tasks } = useTasks(); // fetch tasks from context or pass as props
+  const { tasks } = useTasks();
 
   // Compute basic metrics
   const totalTasks = tasks.length;

@@ -1,40 +1,40 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext"; // Added for dark mode
+import { useTheme } from "../context/ThemeContext"; 
 
 const Login = () => {
   const { login } = useAuth();
-  const { darkMode } = useTheme(); // Access dark mode state
+  const { darkMode } = useTheme(); 
   const navigate = useNavigate();
   const [form, setForm] = useState({ usernameOrEmail: "", password: "" });
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (!form.usernameOrEmail || !form.password) {
-      alert("Please enter both username/email and password");
+  try {
+    const loggedInUser = await login(form.usernameOrEmail, form.password);
+
+    if (!loggedInUser) {
+      alert("Login failed");
       return;
     }
 
-    const success = login(form.usernameOrEmail, form.password);
-
-    if (success) {
-      const loggedInUser = JSON.parse(localStorage.getItem("user"));
-      if (loggedInUser.role === "admin") {
-        navigate("/dashboard");
-      } else if (loggedInUser.role === "user") {
-        navigate("/user");
-      } else {
-        alert("🚧 Page under construction for your role");
-      }
+    if (loggedInUser.role === "admin") {
+      navigate("/dashboard");
     } else {
-      alert("Invalid username/email or password");
+      navigate("/user");
     }
-  };
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+
+
 
   return (
     <div className={`flex flex-col items-center justify-center h-screen ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
@@ -47,7 +47,8 @@ const Login = () => {
         <input
           type="text"
           name="usernameOrEmail"
-          placeholder="Username or Email"
+          placeholder="Email"
+
           value={form.usernameOrEmail}
           onChange={handleChange}
           className={`mb-4 w-full p-2 border rounded ${darkMode ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400" : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"}`}

@@ -1,23 +1,23 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext"; // Theme context
+import { useTheme } from "../context/ThemeContext"; 
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { darkMode, toggleDarkMode } = useTheme(); // Access theme state
+  const { darkMode, toggleDarkMode } = useTheme(); 
 
   const handleLogout = () => {
-    logout();           // Clear user session
-    navigate("/login"); // Redirect to login page
+    logout();           
+    navigate("/login"); 
   };
 
   return (
     <nav className={`p-4 ${darkMode ? "bg-gray-800 text-gray-100" : "bg-slate-50 text-slate-800 border-b border-slate-200"}`}>
       <div className="flex items-center justify-between gap-3">
-        <h1 className="font-bold text-lg whitespace-nowrap">Task Manager</h1>
+        <h1 className="font-bold text-lg whitespace-nowrap">TeamTrack</h1>
         <div className="flex items-center gap-2 sm:gap-4 whitespace-nowrap">
         {/* Dark mode toggle */}
         <button

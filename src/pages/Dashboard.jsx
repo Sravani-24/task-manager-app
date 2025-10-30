@@ -24,18 +24,19 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useTasks } from "../context/TaskContext";
+import { db } from "../firebaseConfig";
+import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
 
 const COLORS = ["#3B82F6", "#22C55E", "#FACC15", "#EF4444"];
 
-/* ---------- DASHBOARD COMPONENT ---------- */
+//* ---------- DASHBOARD COMPONENT ---------- */
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("analytics");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { darkMode } = useTheme();
   const { user } = useAuth();
   const { addActivity } = useTasks();
 
-  // Unified activity logger - includes user context and persists properly
   const addActivityLog = (message) => {
     if (!user) return;
     const existingLogs = JSON.parse(localStorage.getItem("activityLog")) || [];
@@ -46,10 +47,10 @@ export default function AdminDashboard() {
       message,
       timestamp: new Date().toISOString(),
     };
+
     const updatedLogs = [newLog, ...existingLogs].slice(0, 200);
     localStorage.setItem("activityLog", JSON.stringify(updatedLogs));
     window.dispatchEvent(new Event("activityLogUpdated"));
-    // Also use TaskContext's addActivity for consistency
     addActivity(message);
   };
 
@@ -61,57 +62,63 @@ export default function AdminDashboard() {
         { key: "tasks", label: "Tasks", icon: <ClipboardList size={18} /> },
         { key: "analytics", label: "Analytics", icon: <BarChart2 size={18} /> },
         { key: "activity", label: "Activity Log", icon: <MessageSquare size={18} /> },
-        { key: "settings", label: "Settings", icon: <Settings size={18} /> },
+        {/* key: "settings", label: "Settings", icon: <Settings size={18} /> */},
       ]
     : [
         { key: "tasks", label: "My Tasks", icon: <ClipboardList size={18} /> },
         { key: "analytics", label: "Analytics", icon: <BarChart2 size={18} /> },
-        { key: "settings", label: "Settings", icon: <Settings size={18} /> },
+        {/* key: "settings", label: "Settings", icon: <Settings size={18} /> */},
       ];
 
   return (
     <div
-      className={`flex h-screen flex-col md:flex-row transition-all duration-300 ${
+      className={`flex h-screen overflow-hidden transition-all duration-300 ${
         darkMode ? "bg-gray-950 text-gray-100" : "bg-slate-50 text-slate-900"
       }`}
     >
-      {/* Mobile overlay to close sidebar */}
+      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
           className="fixed inset-0 bg-black/40 md:hidden z-10"
-          aria-hidden="true"
         />
       )}
+
       {/* ---------- SIDEBAR ---------- */}
       <div
-        className={`fixed md:static z-20 top-0 left-0 h-full transition-transform transform
-          ${sidebarOpen ? "translate-x-0 md:block" : "-translate-x-full md:hidden"}
-          ${
-            darkMode
-              ? "bg-gray-900 border-r border-gray-800"
-              : "bg-gradient-to-b from-sky-50 to-indigo-50 border-r border-slate-200"
-          } w-[80vw] sm:w-64 shadow-lg`}
+        className={`fixed top-0 left-0 h-screen z-20 transition-transform transform
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        ${
+          darkMode
+            ? "bg-gray-900 border-r border-gray-800"
+            : "bg-gradient-to-b from-sky-50 to-indigo-50 border-r border-slate-200"
+        } w-[80vw] sm:w-64 shadow-lg`}
       >
-        <div className={`p-5 border-b ${darkMode ? "border-gray-800" : "border-slate-200"} flex items-center justify-between`}>
-          <h2 className="text-xl font-semibold tracking-tight">Task Manager</h2>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-600">
-            ✕
-          </button>
+        <div
+          className={`p-5 border-b flex items-center justify-between ${
+            darkMode ? "border-gray-800" : "border-slate-200"
+          }`}
+        >
+          <h2 className="text-xl font-semibold tracking-tight">TeamTrack</h2>
         </div>
-        <nav className="p-4 space-y-2">
+
+        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-64px)]">
           {menuItems.map((item) => (
             <button
               key={item.key}
-              onClick={() => setActiveTab(item.key)}
+              onClick={() => {
+                setActiveTab(item.key);
+              }}
               className={`flex items-center gap-3 w-full text-left px-4 py-2 rounded-lg font-medium transition-all
-                ${
-                  activeTab === item.key
-                    ? (darkMode ? "bg-blue-600 text-white shadow-sm" : "bg-sky-200 text-sky-900 shadow-sm")
-                    : darkMode
-                    ? "hover:bg-gray-800 hover:text-white"
-                    : "hover:bg-sky-100 text-slate-700"
-                }`}
+              ${
+                activeTab === item.key
+                  ? darkMode
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-sky-200 text-sky-900 shadow-sm"
+                  : darkMode
+                  ? "hover:bg-gray-800 hover:text-white"
+                  : "hover:bg-sky-100 text-slate-700"
+              }`}
             >
               {item.icon}
               {item.label}
@@ -121,67 +128,110 @@ export default function AdminDashboard() {
       </div>
 
       {/* ---------- MAIN CONTENT ---------- */}
-      <div className="flex-1 flex flex-col overflow-y-auto">
+      <div
+        className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${
+          sidebarOpen ? "md:ml-64" : "md:ml-0"
+        }`}
+      >
         {/* Topbar */}
-        <header
-          className={`flex items-center justify-start gap-3 p-4 border-b sticky top-0 z-10 
-          ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white/80 backdrop-blur border-slate-200"}`}
-        >
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-700">
-            <Menu size={22} />
-          </button>
-          <h1 className="text-xl font-semibold capitalize">{activeTab}</h1>
-        </header>
-
-        {/* Tab Content */}
+<header
+  className={`flex items-center justify-between p-4 border-b sticky top-0 z-10 
+  ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white/80 backdrop-blur border-slate-200"}`}
+>  <div className="flex items-center gap-3">
+      <button
+      onClick={() => setSidebarOpen((prev) => !prev)}
+      className="text-gray-700 dark:text-gray-200 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+    >
+      <Menu size={22} />
+    </button>
+    <h1 className="text-xl font-semibold capitalize">{activeTab}</h1>
+  </div>
+  <div></div>
+</header>
+        {/* Tabs */}
         <main className="p-4 sm:p-6 flex-1 overflow-y-auto">
           {activeTab === "users" && <UsersTab darkMode={darkMode} addActivityLog={addActivityLog} />}
           {activeTab === "tasks" && <TasksTab darkMode={darkMode} addActivityLog={addActivityLog} />}
           {activeTab === "analytics" && <AnalyticsTab darkMode={darkMode} />}
           {activeTab === "activity" && <ActivityLogTab darkMode={darkMode} />}
-          {activeTab === "settings" && <SettingsTab darkMode={darkMode} addActivityLog={addActivityLog} />}
+          {/* {activeTab === "settings" && <SettingsTab darkMode={darkMode} addActivityLog={addActivityLog} />} */}
         </main>
       </div>
     </div>
   );
 }
 
-/* ---------- USERS TAB ---------- */
-function UsersTab({ darkMode, addActivityLog }) {
-  const { users, setUsers } = useAuth();
-  const [form, setForm] = useState({ name: "", email: "", role: "User" });
-  const [editingId, setEditingId] = useState(null);
 
-  const handleSubmit = (e) => {
+/* ---------- USERS TAB---------- */
+
+function UsersTab({ darkMode }) {
+  const { register } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [form, setForm] = useState({ username: "", email: "", role: "user", password: "" });
+  const [editingUser, setEditingUser] = useState(null);
+
+  //Fetch users from Firestore
+  const fetchUsers = async () => {
+    const snap = await getDocs(collection(db, "users"));
+    setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  //Add / Update user
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.email) return;
-    if (editingId) {
-      setUsers(users.map((u) => (u.id === editingId ? { ...u, ...form } : u)));
-      addActivityLog(`User updated: ${form.name}`);
-      setEditingId(null);
+
+    if (!form.username || !form.email) return alert("Fill all fields");
+
+    if (editingUser) {
+      //Update user role / name
+      await updateDoc(doc(db, "users", editingUser.id), {
+        username: form.username,
+        email: form.email,
+        role: form.role
+      });
+
+      setEditingUser(null);
+      alert("User updated");
     } else {
-      // default password for users created here
-      const username = form.name?.toLowerCase().replace(/\s+/g, "") || form.email.split("@")[0];
-      setUsers([...users, { id: Date.now(), name: form.name, username, email: form.email, role: form.role.toLowerCase(), password: "1234" }]);
-      addActivityLog(`New user added: ${form.name}`);
+      //Admin creates a new Firebase user
+      try {
+        await register(form.email, form.password, form.username, form.role);
+        alert("New user created ✅");
+      } catch (err) {
+        alert(err.message);
+      }
     }
-    setForm({ name: "", email: "", role: "User" });
+
+    setForm({ username: "", email: "", role: "user", password: "" });
+    fetchUsers();
   };
 
+  // Edit button
   const handleEdit = (u) => {
-    setForm(u);
-    setEditingId(u.id);
+    setEditingUser(u);
+    setForm({
+      username: u.username,
+      email: u.email,
+      role: u.role,
+      password: ""
+    });
   };
 
-  const handleDelete = (id) => {
-    const deletedUser = users.find((u) => u.id === id);
-    setUsers(users.filter((u) => u.id !== id));
-    addActivityLog(`User deleted: ${deletedUser?.name || id}`);
+  // Delete user from Firestore
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this user?")) return;
+    await deleteDoc(doc(db, "users", id));
+    fetchUsers();
   };
 
   return (
     <div>
       <h2 className="text-2xl font-semibold mb-5">User Management</h2>
+
       <form
         onSubmit={handleSubmit}
         className={`flex flex-wrap gap-3 mb-6 p-4 rounded-xl shadow 
@@ -189,71 +239,68 @@ function UsersTab({ darkMode, addActivityLog }) {
       >
         <input
           type="text"
-          placeholder="Name"
-          className={`border p-2 rounded flex-1 focus:outline-none 
-            ${darkMode ? "bg-gray-700 text-white" : "bg-white text-black"}`}
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder="Username"
+          className={`border p-2 rounded flex-1 ${darkMode ? "bg-gray-700" : "bg-white"}`}
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value })}
         />
         <input
           type="email"
           placeholder="Email"
-          className={`border p-2 rounded flex-1 focus:outline-none 
-            ${darkMode ? "bg-gray-700 text-white" : "bg-white text-black"}`}
+          className={`border p-2 rounded flex-1 ${darkMode ? "bg-gray-700" : "bg-white"}`}
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
+        
+        {!editingUser && (
+          <input
+            type="password"
+            placeholder="Password"
+            className={`border p-2 rounded flex-1 ${darkMode ? "bg-gray-700" : "bg-white"}`}
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+        )}
+
         <select
-          className={`border p-2 rounded ${darkMode ? "bg-gray-700 text-white" : "bg-white text-black"}`}
+          className={`border p-2 rounded ${darkMode ? "bg-gray-700" : "bg-white"}`}
           value={form.role}
           onChange={(e) => setForm({ ...form, role: e.target.value })}
         >
-          <option>User</option>
-          <option>Admin</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
         </select>
-        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
-          {editingId ? "Update" : "Add"}
+
+        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+          {editingUser ? "Update User" : "Add User"}
         </button>
       </form>
 
-      {/* Users List */}
-      <div className={`overflow-x-auto rounded-lg shadow ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-        <table className="w-full text-sm sm:text-base border-collapse">
-          <thead className={`${darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"}`}>
+      {/* Users list */}
+      <div className={`rounded-lg shadow ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+        <table className="w-full text-sm">
+          <thead className={`${darkMode ? "bg-gray-700" : "bg-gray-100"}`}>
             <tr>
-              <th className="px-4 py-2 text-left">Name</th>
-              <th className="px-4 py-2 text-left">Email</th>
-              <th className="px-4 py-2 text-left">Role</th>
-              <th className="px-4 py-2 text-left">Actions</th>
+              <th className="p-2">Username</th>
+              <th className="p-2">Email</th>
+              <th className="p-2">Role</th>
+              <th className="p-2">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {users && users.length > 0 ? (
-              users.map((u) => (
-                <tr key={u.id} className={`border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
-                  <td className="px-4 py-2">{u.name || u.username}</td>
-                  <td className="px-4 py-2">{u.email}</td>
-                  <td className="px-4 py-2 capitalize">{u.role}</td>
-                  <td className="px-4 py-2 space-x-2">
-                    <button
-                      onClick={() => handleEdit(u)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(u.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="4" className="px-4 py-4 text-center text-gray-500">No users found.</td>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b">
+                <td className="p-2">{u.username}</td>
+                <td className="p-2">{u.email}</td>
+                <td className="p-2 capitalize">{u.role}</td>
+                <td className="p-2 space-x-2">
+                  <button onClick={() => handleEdit(u)} className="text-blue-600">Edit</button>
+                  <button onClick={() => handleDelete(u.id)} className="text-red-600">Delete</button>
+                </td>
               </tr>
+            ))}
+            {users.length === 0 && (
+              <tr><td colSpan="4" className="text-center p-4 text-gray-500">No users found</td></tr>
             )}
           </tbody>
         </table>
@@ -262,295 +309,366 @@ function UsersTab({ darkMode, addActivityLog }) {
   );
 }
 
+
 /* ---------- TASKS TAB ---------- */
 function TasksTab({ darkMode, addActivityLog }) {
   const { user } = useAuth();
-  const { tasks, addTask, updateTask, deleteTask, addComment, updateComment, deleteComment } = useTasks();
+  const { tasks = [], addTask, updateTask, deleteTask, addComment } = useTasks();
+
+  const [usersList, setUsersList] = useState([]); // ✅ Firebase user list
   const [form, setForm] = useState({
     title: "",
+    description: "",
     assignedTo: "",
     status: "To Do",
     priority: "Low",
     dueDate: "",
   });
-  const [editingId, setEditingId] = useState(null);
-  const [commentTaskId, setCommentTaskId] = useState(null);
-  const [commentInput, setCommentInput] = useState("");
-  const [editingCommentId, setEditingCommentId] = useState(null);
 
+  const [editingId, setEditingId] = useState(null);
+  const [commentInput, setCommentInput] = useState("");
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [commentModalTask, setCommentModalTask] = useState(null);
+
+  const safeTasks = tasks || [];
   const visibleTasks =
     user?.role?.toLowerCase() === "admin"
-      ? tasks
-      : tasks.filter((t) => t.assignedTo?.toLowerCase() === user?.username?.toLowerCase());
+      ? safeTasks
+      : safeTasks.filter(
+          (t) => t.assignedTo?.toLowerCase() === user?.username?.toLowerCase()
+        );
+
+  /* ✅ Fetch users from Firebase */
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const usersRef = collection(db, "users");
+        const snap = await getDocs(usersRef);
+        const list = snap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+        setUsersList(list);
+      } catch (err) {
+        console.error("Error loading users: ", err);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title || !form.assignedTo) return;
 
-    let normalizedStatus = form.status;
-    if (normalizedStatus.toLowerCase() === "completed") normalizedStatus = "Done";
+    const normalizedStatus =
+      form.status.toLowerCase() === "completed" ? "Done" : form.status;
 
     if (editingId) {
       updateTask(editingId, { ...form, status: normalizedStatus });
-      addActivityLog(`Task updated: ${form.title}`);
       setEditingId(null);
     } else {
-      addTask({ ...form, id: Date.now(), comments: [], status: normalizedStatus });
-      addActivityLog(`Task created: ${form.title}`);
+      addTask({
+        ...form,
+        id: Date.now(),
+        comments: [],
+        status: normalizedStatus,
+      });
     }
 
-    setForm({ title: "", assignedTo: "", status: "To Do", priority: "Low", dueDate: "" });
+    setForm({
+      title: "",
+      description: "",
+      assignedTo: "",
+      status: "To Do",
+      priority: "Low",
+      dueDate: "",
+    });
   };
 
-const localToday = new Date();
-localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
-const today = localToday.toISOString().split("T")[0];
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .split("T")[0];
 
   return (
-  <div
-    className={`p-4 sm:p-6 rounded-xl ${
-      darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"
-    }`}
-  >
-    <h2 className="text-2xl font-semibold mb-5">Task Management</h2>
+    <div
+      className={`p-4 sm:p-6 rounded-xl ${
+        darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"
+      }`}
+    >
+      <h2 className="text-2xl font-semibold mb-5">Task Management</h2>
 
-    {/* ---------- ADMIN TASK FORM ---------- */}
-    {user?.role?.toLowerCase() === "admin" && (
-      <>
-        <form
-          onSubmit={handleSubmit}
-          className={`grid grid-cols-1 md:grid-cols-6 gap-3 mb-6 p-4 rounded-xl shadow w-full ${
-            darkMode ? "bg-gray-800" : "bg-white"
-          }`}
-        >
-          <input
-            type="text"
-            placeholder="Task Title"
-            className={`border p-2 rounded col-span-2 ${
-              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
+      {/* Admin Create Task Form */}
+      {user?.role?.toLowerCase() === "admin" && (
+        <>
+          <form
+            onSubmit={handleSubmit}
+            className={`grid grid-cols-1 md:grid-cols-6 gap-3 mb-6 p-4 rounded-xl shadow ${
+              darkMode ? "bg-gray-800" : "bg-white"
             }`}
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-
-          <input
-            type="text"
-            placeholder="Assigned To"
-            className={`border p-2 rounded col-span-1 ${
-              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
-            }`}
-            value={form.assignedTo}
-            onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-          />
-
-          <select
-            className={`border p-2 rounded col-span-1 ${
-              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
-            }`}
-            value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value })}
           >
-            <option>To Do</option>
-            <option>In Progress</option>
-            <option>Done</option>
-          </select>
-
-          <select
-            className={`border p-2 rounded col-span-1 ${
-              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
-            }`}
-            value={form.priority}
-            onChange={(e) => setForm({ ...form, priority: e.target.value })}
-          >
-            <option>Low</option>
-            <option>Medium</option>
-            <option>High</option>
-          </select>
-
-          <input
-            type="date"
-            min={today}
-            className={`border p-2 rounded col-span-1 ${
-              darkMode ? "bg-gray-700 text-gray-100" : "bg-white text-gray-900"
-            }`}
-            value={form.dueDate}
-            onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-          />
-
-          <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md col-span-1"
-          >
-            {editingId ? "Update" : "Add"}
-          </button>
-        </form>
-
-        {/* ---------- TASK LIST ---------- */}
-        <div
-          className={`overflow-x-auto rounded-lg shadow w-full ${
-            darkMode ? "bg-gray-800" : "bg-white"
-          }`}
-        >
-          <table className="w-full text-sm sm:text-base border-collapse">
-            <thead
-              className={`${
-                darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"
+            <input
+              type="text"
+              placeholder="Task Title"
+              className={`border p-2 rounded col-span-2 ${
+                darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
               }`}
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+
+            <textarea
+              placeholder="Task Description"
+              className={`border p-2 rounded col-span-2 ${
+                darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
+              }`}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+
+           {/*Dropdown -Users */}
+<select
+  className={`border p-2 rounded ${
+    darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
+  }`}
+  value={form.assignedTo}
+  onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+>
+  <option value="">Assign User</option>
+
+  {usersList
+    .filter((u) => u.role?.toLowerCase() !== "admin") // ❌ Remove admins
+    .map((u) => (
+      <option key={u.id} value={u.username}>
+        {u.name || u.username}
+      </option>
+    ))}
+</select>
+
+
+            <select
+              className={`border p-2 rounded ${
+                darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
+              }`}
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
             >
-              <tr>
-                <th className="px-4 py-2 text-left">Title</th>
-                <th className="px-4 py-2 text-left">Assigned To</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-left">Priority</th>
-                <th className="px-4 py-2 text-left">Due Date</th>
-                <th className="px-4 py-2 text-left">Comments</th>
-                <th className="px-4 py-2 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleTasks.length === 0 ? (
+              <option>To Do</option>
+              <option>In Progress</option>
+              <option>Done</option>
+            </select>
+
+            <select
+              className={`border p-2 rounded ${
+                darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
+              }`}
+              value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            >
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+
+            <input
+              type="date"
+              min={today}
+              className={`border p-2 rounded ${
+                darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
+              }`}
+              value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+            />
+
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+            >
+              {editingId ? "Update" : "Add"}
+            </button>
+          </form>
+                    {/* Tasks Table */}
+          <div
+            className={`overflow-x-auto rounded-lg shadow ${
+              darkMode ? "bg-gray-800" : "bg-white"
+            }`}
+          >
+            <table className="w-full text-sm sm:text-base">
+              <thead
+                className={`${
+                  darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-100"
+                }`}
+              >
                 <tr>
-                  <td colSpan="6" className="text-center py-4 text-gray-500">
-                    No tasks available.
-                  </td>
+                  <th className="px-4 py-2">Title</th>
+                  <th className="px-4 py-2">Description</th>
+                  <th className="px-4 py-2">Assigned To</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2">Priority</th>
+                  <th className="px-4 py-2">Due Date</th>
+                  <th className="px-4 py-2">Comments</th>
+                  <th className="px-4 py-2">Actions</th>
                 </tr>
-              ) : (
-                visibleTasks.map((task) => (
-                  <React.Fragment key={task.id}>
-                  <tr
-                    className={`border-b ${
-                      darkMode ? "border-gray-700" : "border-gray-200"
-                    }`}
-                  >
-                    <td className="px-4 py-2">{task.title}</td>
-                    <td className="px-4 py-2">{task.assignedTo}</td>
-                    <td className="px-4 py-2">{task.status}</td>
-                    <td className="px-4 py-2">{task.priority}</td>
-                    <td className="px-4 py-2">
-                      {task.dueDate
-                        ? new Date(task.dueDate).toLocaleDateString()
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => { setCommentTaskId(task.id); setEditingCommentId(null); setCommentInput(""); }}
-                        className={`${darkMode ? "text-blue-300" : "text-blue-700"} hover:underline`}
+              </thead>
+
+              <tbody>
+                {visibleTasks.length ? (
+                  visibleTasks.map((task) => (
+                    <tr
+                      key={task.id}
+                      className={darkMode ? "border-b border-gray-700" : "border-b"}
+                    >
+                      <td
+                        className="px-4 py-2 text-blue-600 underline cursor-pointer"
+                        onClick={() => setSelectedTask(task)}
                       >
-                        {Array.isArray(task.comments) ? `${task.comments.length} comments` : "Add comment"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2 space-x-2">
-                      <button
-                        onClick={() => {
-                          setForm(task);
-                          setEditingId(task.id);
-                        }}
-                        className="text-blue-600 hover:underline"
+                        {task.title}
+                      </td>
+
+                      <td className="px-4 py-2">{task.description || "—"}</td>
+                      <td className="px-4 py-2">{task.assignedTo}</td>
+                      <td className="px-4 py-2">{task.status}</td>
+                      <td className="px-4 py-2">{task.priority}</td>
+                      <td className="px-4 py-2">
+                        {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
+                      </td>
+
+                      {/* Open Comments Popup */}
+                      <td
+                        className="px-4 py-2 text-blue-500 underline cursor-pointer"
+                        onClick={() => setCommentModalTask(task)}
                       >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteTask(task.id)}
-                        className="text-red-600 hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                  {commentTaskId === task.id && (
-                    <tr className={`${darkMode ? "bg-gray-900" : "bg-slate-50"}`}>
-                      <td colSpan="7" className="px-4 py-3">
-                        <div className="space-y-3">
-                          <div className="flex gap-2">
-                            <input
-                              value={commentInput}
-                              onChange={(e) => setCommentInput(e.target.value)}
-                              placeholder={editingCommentId ? "Update comment" : "Write a comment"}
-                              className={`flex-1 p-2 border rounded ${darkMode ? "bg-gray-800 border-gray-700 text-gray-100" : "bg-white border-slate-300"}`}
-                            />
-                            <button
-                              onClick={() => {
-                                if (!commentInput.trim()) return;
-                                if (editingCommentId) {
-                                  updateComment(task.id, editingCommentId, commentInput.trim());
-                                  addActivityLog(`Comment updated on task: ${task.title || task.id}`);
-                                } else {
-                                  // If user prefixed input with @author, attempt to thread under last selected edited comment
-                                  const potentialParent = editingCommentId ? editingCommentId : null;
-                                  addComment(task.id, commentInput.trim(), potentialParent);
-                                  addActivityLog(`Comment added on task: ${task.title || task.id}`);
-                                }
-                                setCommentInput("");
-                                setEditingCommentId(null);
-                              }}
-                              className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-                            >
-                              {editingCommentId ? "Update" : "Add"}
-                            </button>
-                            <button onClick={() => { setCommentTaskId(null); setCommentInput(""); setEditingCommentId(null); }} className={`px-3 py-2 rounded ${darkMode ? "bg-gray-700 text-white" : "bg-slate-200 text-slate-800"}`}>Close</button>
-                          </div>
-                          {(() => {
-                            const buildTree = (comments) => {
-                              const nodesById = new Map();
-                              const roots = [];
-                              (comments || []).forEach((c) => nodesById.set(c.id, { ...c, children: [] }));
-                              nodesById.forEach((node) => {
-                                if (node.parentId && nodesById.has(node.parentId)) {
-                                  nodesById.get(node.parentId).children.push(node);
-                                } else {
-                                  roots.push(node);
-                                }
-                              });
-                              return roots;
-                            };
-                            const tree = buildTree(task.comments);
-                            const RenderNode = ({ node, level = 0 }) => (
-                              <li className={`p-2 rounded border ${darkMode ? "border-gray-700" : "border-slate-200"} ${level ? "ml-6" : ""}`}>
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <div className="text-sm font-medium">{node.author}</div>
-                                    <div className="text-xs opacity-70">{new Date(node.createdAt).toLocaleString()}</div>
-                                  </div>
-                                  <div className="space-x-2">
-                                    <button onClick={() => { setEditingCommentId(node.id); setCommentInput(node.text); }} className={`${darkMode ? "text-blue-300" : "text-blue-700"} hover:underline`}>Edit</button>
-                                    <button onClick={() => setCommentInput(`@${node.author} `)} className={`${darkMode ? "text-emerald-300" : "text-emerald-700"} hover:underline`}>Reply</button>
-                                    {user?.role?.toLowerCase() === "admin" && (
-                                      <button onClick={() => { deleteComment(task.id, node.id); addActivityLog(`Comment deleted on task: ${task.title || task.id}`); }} className={`${darkMode ? "text-red-300" : "text-red-700"} hover:underline`}>Delete</button>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="mt-1 text-sm">{node.text}</div>
-                                {node.children?.length > 0 && (
-                                  <ul className="space-y-2 mt-2">
-                                    {node.children.map((child) => (
-                                      <RenderNode key={child.id} node={child} level={level + 1} />
-                                    ))}
-                                  </ul>
-                                )}
-                              </li>
-                            );
-                            return (
-                              <ul className="space-y-2">
-                                {tree.length > 0 ? tree.map((n) => <RenderNode key={n.id} node={n} />) : <li className="text-sm opacity-70">No comments yet.</li>}
-                              </ul>
-                            );
-                          })()}
-                          <div className="text-xs opacity-70">Tip: To reply to a specific comment, click Reply; your next Add will nest under that comment.</div>
-                        </div>
+                        {task.comments?.length || 0} comments
+                      </td>
+
+                      <td className="px-4 py-2 space-x-2">
+                        <button
+                          onClick={() => {
+                            setForm(task);
+                            setEditingId(task.id);
+                          }}
+                          className="text-blue-600"
+                        >
+                          Edit
+                        </button>
+                        <button onClick={() => deleteTask(task.id)} className="text-red-600">
+                          Delete
+                        </button>
                       </td>
                     </tr>
-                  )}
-                  </React.Fragment>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </>
-    )}
-  </div>
-);
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8" className="text-center py-4 text-gray-500">
+                      No tasks available.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
+      {/* ✅ Comments Modal */}
+      {commentModalTask && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-[400px] shadow-xl">
+            <h3 className="text-lg font-semibold mb-3">
+              Comments — {commentModalTask.title}
+            </h3>
+
+            <div className="border rounded p-2 max-h-[250px] overflow-y-auto mb-3 bg-gray-50 dark:bg-gray-900">
+              {commentModalTask.comments?.length ? (
+                commentModalTask.comments.map((c) => (
+                  <div key={c.id} className="border-b pb-2 mb-2 dark:border-gray-700">
+                    <p>{c.text}</p>
+                    <small className="text-gray-500">
+                      — {c.author} • {new Date(c.time).toLocaleString()}
+                    </small>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No comments yet.</p>
+              )}
+            </div>
+
+            {/* Add Comment */}
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                placeholder="Add comment..."
+                className="border p-2 rounded flex-1 dark:bg-gray-700 dark:text-white"
+                value={commentInput}
+                onChange={(e) => setCommentInput(e.target.value)}
+              />
+              <button
+                onClick={() => {
+                  if (!commentInput.trim()) return;
+
+                  const newComment = {
+                    id: Date.now(),
+                    text: commentInput,
+                    author: user.username,
+                    time: new Date().toISOString(),
+                  };
+
+                  addComment(commentModalTask.id, newComment);
+                  setCommentInput("");
+
+                  setCommentModalTask((prev) => ({
+                    ...prev,
+                    comments: [...(prev.comments || []), newComment],
+                  }));
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded"
+              >
+                Add
+              </button>
+            </div>
+
+            <button
+              className="bg-red-600 text-white w-full py-2 rounded"
+              onClick={() => setCommentModalTask(null)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Full Task Details Modal */}
+      {selectedTask && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-[400px] max-h-[85vh] overflow-hidden shadow-xl">
+            <h3 className="text-xl font-semibold mb-3">{selectedTask.title}</h3>
+
+            <div className="mb-4">
+              <h4 className="font-medium mb-1">Description:</h4>
+              <div className="border rounded p-2 text-sm max-h-[200px] overflow-y-auto whitespace-pre-wrap">
+                {selectedTask.description || "No description"}
+              </div>
+            </div>
+
+            <p className="text-sm"><strong>Assigned To:</strong> {selectedTask.assignedTo}</p>
+            <p className="text-sm"><strong>Status:</strong> {selectedTask.status}</p>
+            <p className="text-sm"><strong>Priority:</strong> {selectedTask.priority}</p>
+            <p className="text-sm mb-5">
+              <strong>Due Date:</strong>{" "}
+              {selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString() : "—"}
+            </p>
+
+            <button
+              onClick={() => setSelectedTask(null)}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded w-full mt-4"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 
@@ -661,7 +779,6 @@ function ActivityLogTab({ darkMode }) {
 
     loadLogs();
 
-    // 🔁 Listen for both localStorage + custom event changes
     window.addEventListener("activityLogUpdated", loadLogs);
     window.addEventListener("storage", loadLogs);
 
@@ -676,7 +793,8 @@ function ActivityLogTab({ darkMode }) {
     <div className={`p-6 rounded-xl shadow ${darkMode ? "bg-gray-900 text-gray-100" : "bg-white text-gray-900"}`}>
       <h2 className="text-2xl font-semibold mb-4">Activity Log</h2>
       {activityLog.length > 0 ? (
-        <ul className="space-y-3 max-h-[70vh] overflow-y-auto">
+        <ul className="space-y-3">
+
           {activityLog.map((log) => (
             <li
               key={log.id || log.timestamp}
@@ -697,6 +815,7 @@ function ActivityLogTab({ darkMode }) {
 }
 
 /* ---------- SETTINGS TAB ---------- */
+/*
 function SettingsTab({ darkMode, addActivityLog }) {
   const { user } = useAuth();
   const [form, setForm] = useState({ name: user?.name || "", email: user?.email || "" });
@@ -734,3 +853,4 @@ function SettingsTab({ darkMode, addActivityLog }) {
     </div>
   );
 }
+*/

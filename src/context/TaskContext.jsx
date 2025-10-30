@@ -1,43 +1,56 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 
-export const TaskContext = createContext();
+export const TaskContext = createContext(null);
 
 export function TaskProvider({ children }) {
   const { user } = useAuth();
 
-  // ✅ Load from localStorage safely
   const [tasks, setTasks] = useState(() => {
     try {
-      const saved = localStorage.getItem("tasks");
-      return saved ? JSON.parse(saved) : [];
+      return JSON.parse(localStorage.getItem("tasks")) || [];
     } catch {
       return [];
     }
   });
 
-  // Global activity log (single source of truth)
   const [activityLog, setActivityLog] = useState(() => {
     try {
-      const saved = localStorage.getItem("activityLog");
-      return saved ? JSON.parse(saved) : [];
+      return JSON.parse(localStorage.getItem("activityLog")) || [];
     } catch {
       return [];
     }
   });
 
-  // ✅ Persist to localStorage
+  //Sync tasks & logs
   useEffect(() => {
-    localStorage.setItem("tasks", JSON.stringify(tasks));
+    localStorage.setItem("tasks", JSON.stringify(tasks || []));
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem("activityLog", JSON.stringify(activityLog));
+    localStorage.setItem("activityLog", JSON.stringify(activityLog || []));
   }, [activityLog]);
 
-  // ✅ Add new task
+  //Add activity entry
+  const addActivity = (message) => {
+    if (!user) return;
+
+    const newEntry = {
+      id: Date.now(),
+      user: user.username,
+      role: user.role,
+      message,
+      timestamp: new Date().toISOString(),
+    };
+
+    setActivityLog((prev = []) => [newEntry, ...prev].slice(0, 200));
+    window.dispatchEvent(new Event("activityLogUpdated"));
+  };
+
+  //Add Task
   const addTask = (task) => {
     if (!user) return;
+
     const newTask = {
       ...task,
       id: Date.now(),
@@ -46,120 +59,96 @@ export function TaskProvider({ children }) {
       status: task.status || "Pending",
       comments: Array.isArray(task.comments) ? task.comments : [],
     };
-    setTasks((prev) => [...prev, newTask]);
-    addActivity(`Created a new task: ${task.title}`);
+
+    setTasks((prev = []) => [...prev, newTask]);
+    addActivity(`📝 Created task "${task.title}"`);
   };
 
-  // ✅ Update task
+  //Update Task
   const updateTask = (id, updatedData) => {
-    setTasks((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, ...updatedData } : task))
+    const oldTask = tasks.find((t) => t.id === id);
+
+    setTasks((prev = []) =>
+      prev.map((t) => (t.id === id ? { ...t, ...updatedData } : t))
     );
-    addActivity(`Updated task: ${updatedData.title || `ID ${id}`}`);
+
+    addActivity(`✏️ Updated task "${oldTask?.title}"`);
   };
 
-  // ✅ Delete task
+  //Delete Task
   const deleteTask = (id) => {
-    const task = tasks.find((t) => t.id === id);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    addActivity(`Deleted task: ${task?.title || id}`);
+    const task = tasks?.find((t) => t.id === id);
+    setTasks((prev = []) => prev.filter((t) => t.id !== id));
+
+    addActivity(`🗑️ Deleted task "${task?.title}"`);
   };
 
-  // ---------- Comments API ----------
-  const addComment = (taskId, text, parentId = null) => {
-    if (!user || !text) return;
+  //Add Comment
+  const addComment = (taskId, comment) => {
     const task = tasks.find((t) => t.id === taskId);
-    const taskTitle = task?.title || `Task ${taskId}`;
-    const newComment = {
-      id: Date.now(),
-      author: user.username,
-      text,
-      createdAt: new Date().toISOString(),
-      parentId,
-    };
-    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, comments: [...(t.comments || []), newComment] } : t));
-    addActivity(`Commented on task: ${taskTitle}`);
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, comments: [...(t.comments || []), comment] }
+          : t
+      )
+    );
+
+    addActivity(`💬 Added comment on "${task?.title}"`);
   };
 
+  //Update Comment
   const updateComment = (taskId, commentId, newText) => {
     if (!user || !newText) return;
+
     const task = tasks.find((t) => t.id === taskId);
-    const taskTitle = task?.title || `Task ${taskId}`;
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t;
-      const updated = (t.comments || []).map((c) => c.id === commentId ? { ...c, text: newText, updatedAt: new Date().toISOString() } : c);
-      return { ...t, comments: updated };
-    }));
-    addActivity(`Updated a comment on task: ${taskTitle}`);
+
+    setTasks((prev = []) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const updated = (t.comments || []).map((c) =>
+          c.id === commentId ? { ...c, text: newText } : c
+        );
+        return { ...t, comments: updated };
+      })
+    );
+
+    addActivity(`✏️ Updated comment on "${task?.title}"`);
   };
 
+  //Delete Comment
   const deleteComment = (taskId, commentId) => {
-    if (!user || user.role !== "admin") return; // only admins can delete
+    if (!user || user.role !== "admin") return;
+
     const task = tasks.find((t) => t.id === taskId);
-    const taskTitle = task?.title || `Task ${taskId}`;
-    // remove target comment and its threaded replies
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t;
-      const toRemove = new Set([commentId]);
-      const all = t.comments || [];
-      let changed = true;
-      while (changed) {
-        changed = false;
-        for (const c of all) {
-          if (c.parentId && toRemove.has(c.parentId) && !toRemove.has(c.id)) {
-            toRemove.add(c.id);
-            changed = true;
-          }
-        }
-      }
-      const remaining = all.filter((c) => !toRemove.has(c.id));
-      return { ...t, comments: remaining };
-    }));
-    addActivity(`Deleted a comment on task: ${taskTitle}`);
+
+    setTasks((prev = []) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const remain = (t.comments || []).filter((c) => c.id !== commentId);
+        return { ...t, comments: remain };
+      })
+    );
+
+    addActivity(`🗑️ Deleted a comment on "${task?.title}"`);
   };
 
-  // ✅ Add activity (per user)
-  const addActivity = (message) => {
-    if (!user) return;
-    const newEntry = {
-      id: Date.now(),
-      user: user.username,
-      role: user.role,
-      message,
-      timestamp: new Date().toISOString(),
-    };
-    setActivityLog((prev) => [newEntry, ...prev].slice(0, 200));
-    try {
-      const existing = JSON.parse(localStorage.getItem("activityLog")) || [];
-      localStorage.setItem("activityLog", JSON.stringify([newEntry, ...existing].slice(0, 200)));
-    } catch {}
-    // notify listeners (ActivityLogTab listens for this)
-    window.dispatchEvent(new Event("activityLogUpdated"));
-  };
-
-  // ✅ Get current user's activity logs
-  const getUserActivity = () => {
-    if (!user) return [];
-    return (activityLog || []).filter((e) => e.user === user.username);
-  };
-
-  // ✅ Backward compatible alias for older components
-  const getActivityLogs = getUserActivity;
-
-  // ✅ Get current user's tasks
+  //Get Tasks based on user role
   const getUserTasks = () => {
     if (!user) return [];
-    if (user.role === "admin") return tasks;
-    return tasks.filter(
+    if (user.role === "admin") return tasks || [];
+
+    return (tasks || []).filter(
       (t) =>
         t.user?.toLowerCase() === user.username?.toLowerCase() ||
         t.assignedTo?.toLowerCase() === user.username?.toLowerCase()
     );
   };
 
-  // ✅ Dashboard stats (used for user/admin chart)
   const getUserDashboardStats = () => {
     const userTasks = getUserTasks();
+
     return {
       total: userTasks.length,
       pending: userTasks.filter((t) => t.status === "Pending").length,
@@ -168,10 +157,15 @@ export function TaskProvider({ children }) {
     };
   };
 
+  const getUserActivity = () => {
+    if (!user) return [];
+    return (activityLog || []).filter((e) => e.user === user.username);
+  };
+
   return (
     <TaskContext.Provider
       value={{
-        tasks,
+        tasks: tasks || [],
         addTask,
         updateTask,
         deleteTask,
@@ -182,7 +176,6 @@ export function TaskProvider({ children }) {
         getUserDashboardStats,
         addActivity,
         getUserActivity,
-        getActivityLogs: getUserActivity,
       }}
     >
       {children}
@@ -191,5 +184,5 @@ export function TaskProvider({ children }) {
 }
 
 export function useTasks() {
-  return useContext(TaskContext);
+  return useContext(TaskContext) || {};
 }

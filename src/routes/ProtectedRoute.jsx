@@ -4,10 +4,10 @@ import { useAuth } from "../context/AuthContext";
 export default function ProtectedRoute({ children, allowedRoles = [] }) {
   const { user } = useAuth();
 
-  // ✅ Not logged in → redirect to login
+  // Not logged in → redirect to login
   if (!user) return <Navigate to="/" replace />;
 
-  // ✅ If allowedRoles is given and user role not included → show restricted message
+  // If allowedRoles is given and user role not included → show restricted message
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -18,6 +18,6 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
     );
   }
 
-  // ✅ Otherwise render the child component
+  // Otherwise render the child component
   return children;
 }
