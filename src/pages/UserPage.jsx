@@ -18,6 +18,21 @@ export default function UserPage() {
   const userTasks = getUserTasks();
   const activityLogs = getUserActivity ? getUserActivity() : [];
 
+  // Separate individual and group tasks
+  const individualTasks = userTasks.filter(task => {
+    if (Array.isArray(task.assignedTo)) {
+      return task.assignedTo.length === 1;
+    }
+    return true; // Single string assignedTo is individual
+  });
+
+  const groupTasks = userTasks.filter(task => {
+    if (Array.isArray(task.assignedTo)) {
+      return task.assignedTo.length > 1;
+    }
+    return false;
+  });
+
   const data = [
     { name: "To Do", value: userTasks.filter(t => t.status === "To Do").length },
     { name: "In Progress", value: userTasks.filter(t => t.status === "In Progress").length },
@@ -61,7 +76,7 @@ export default function UserPage() {
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-3 mb-6">
-        {["dashboard", "tasks", "activity"].map((tab) => (
+        {["dashboard", "tasks", "groupTasks", "activity"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -71,7 +86,13 @@ export default function UserPage() {
                 : darkMode ? "bg-gray-700 text-gray-300" : "bg-slate-200 text-slate-700"
             }`}
           >
-            {tab === "dashboard" ? "📊 Dashboard" : tab === "tasks" ? "✅ My Tasks" : "🧾 My Activity Log"}
+            {tab === "dashboard" 
+              ? "📊 Dashboard" 
+              : tab === "tasks" 
+              ? "✅ My Tasks" 
+              : tab === "groupTasks"
+              ? "👥 Group Tasks"
+              : "🧾 My Activity Log"}
           </button>
         ))}
       </div>
@@ -97,14 +118,39 @@ export default function UserPage() {
       {/* TASKS */}
       {activeTab === "tasks" && (
         <div className={`p-4 sm:p-6 rounded-2xl shadow ${darkMode ? "bg-gray-800" : "bg-white/90"}`}>
-          <h2 className="text-xl sm:text-2xl font-semibold mb-4">✅ My Tasks</h2>
+          <h2 className="text-xl sm:text-2xl font-semibold mb-4">✅ My Individual Tasks</h2>
+          <p className={`text-sm mb-4 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+            Tasks assigned only to you
+          </p>
 
-          {userTasks.length === 0 ? (
-            <p className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}>No tasks available.</p>
+          {individualTasks.length === 0 ? (
+            <p className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}>No individual tasks available.</p>
           ) : (
             <ul className="space-y-3">
-              {userTasks.map(task => (
+              {individualTasks.map(task => (
                 <TaskItem key={task.id} {...{task, darkMode, editingTaskId, updatedTask, commentInput,
+                  openCommentsTaskId, setUpdatedTask, setCommentInput, setEditingTaskId,
+                  setOpenCommentsTaskId, handleEdit, handleSave, handleDelete, addComment, user}} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* GROUP TASKS */}
+      {activeTab === "groupTasks" && (
+        <div className={`p-4 sm:p-6 rounded-2xl shadow ${darkMode ? "bg-gray-800" : "bg-white/90"}`}>
+          <h2 className="text-xl sm:text-2xl font-semibold mb-4">👥 Group Tasks</h2>
+          <p className={`text-sm mb-4 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+            Tasks shared with multiple team members
+          </p>
+
+          {groupTasks.length === 0 ? (
+            <p className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}>No group tasks available.</p>
+          ) : (
+            <ul className="space-y-3">
+              {groupTasks.map(task => (
+                <GroupTaskItem key={task.id} {...{task, darkMode, editingTaskId, updatedTask, commentInput,
                   openCommentsTaskId, setUpdatedTask, setCommentInput, setEditingTaskId,
                   setOpenCommentsTaskId, handleEdit, handleSave, handleDelete, addComment, user}} />
               ))}
@@ -219,8 +265,145 @@ function TaskItem({
                   className={`flex-1 p-2 border rounded ${darkMode?"bg-gray-800 border-gray-700":"bg-white border-slate-300"}`}
                 />
                 <button className="px-3 py-2 bg-blue-600 text-white rounded"
-                  onClick={()=>{ if(!commentInput.trim())return;
-                    addComment(task.id,commentInput.trim()); setCommentInput(""); }}>
+                  onClick={()=>{ 
+                    if(!commentInput.trim())return;
+                    const newComment = {
+                      id: Date.now(),
+                      text: commentInput.trim(),
+                      author: user.username,
+                      createdAt: new Date().toISOString()
+                    };
+                    addComment(task.id, newComment); 
+                    setCommentInput(""); 
+                  }}>
+                  Add
+                </button>
+                <button className={`px-3 py-2 rounded ${darkMode?"bg-gray-700 text-white":"bg-gray-300 text-black"}`}
+                  onClick={()=>{ setOpenCommentsTaskId(null); setCommentInput(""); }}>Close</button>
+              </div>
+
+              <ul className="mt-2 space-y-2">
+                {(task.comments||[]).map((c)=>(
+                  <li key={c.id} className={`p-2 border rounded text-xs ${darkMode?"border-gray-700":"border-slate-200"}`}>
+                    {c.text}
+                    <div className="text-[10px] opacity-70 mt-1">{c.author} • {new Date(c.createdAt).toLocaleString()}</div>
+                  </li>
+                ))}
+                {(!task.comments || task.comments.length===0) && <li className="text-xs opacity-70">No comments yet.</li>}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-2">
+            <button className={`${darkMode?"bg-blue-600":"bg-sky-200"} px-3 py-1 rounded`} onClick={()=>handleEdit(task)}>Edit</button>
+            {user.role==="admin" && (
+              <button className={`${darkMode?"bg-red-600":"bg-red-200"} px-3 py-1 rounded`}
+                onClick={()=>handleDelete(task.id)}>Delete</button>
+            )}
+          </div>
+        </>
+      )}
+    </li>
+  );
+}
+
+/* Group Task Component - Shows assigned team members */
+function GroupTaskItem({
+  task, darkMode, editingTaskId, updatedTask, commentInput, openCommentsTaskId,
+  setUpdatedTask, setCommentInput, setEditingTaskId, setOpenCommentsTaskId,
+  handleEdit, handleSave, handleDelete, addComment, user
+}) {
+  return (
+    <li className={`border p-4 rounded-xl shadow text-sm sm:text-base ${
+      darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"
+    }`}>
+      {editingTaskId === task.id ? (
+        <div className="space-y-3">
+          <input type="text"
+            className={`w-full p-2 border rounded-md ${darkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+            value={updatedTask.title} onChange={(e)=>setUpdatedTask({...updatedTask,title:e.target.value})}
+          />
+
+          <textarea
+            className={`w-full p-2 border rounded-md ${darkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+            value={updatedTask.description}
+            onChange={(e)=>setUpdatedTask({...updatedTask,description:e.target.value})}
+          />
+
+          <select
+            className={`p-2 border rounded-md ${darkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-gray-100 border-gray-300"}`}
+            value={updatedTask.status} onChange={(e)=>setUpdatedTask({...updatedTask,status:e.target.value})}
+          >
+            <option value="To Do">To Do</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Done">Done</option>
+          </select>
+
+          <div className="flex gap-2">
+            <button className={`${darkMode ? "bg-green-600" : "bg-green-300"} px-4 py-2 rounded-md`}
+              onClick={()=>handleSave(task.id)}>Save</button>
+            <button className={`${darkMode ? "bg-gray-600" : "bg-gray-300"} px-4 py-2 rounded-md`}
+              onClick={()=>setEditingTaskId(null)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <h3 className="font-semibold">{task.title}</h3>
+          <p className="text-xs opacity-80 mt-1">{task.description}</p>
+
+          {/* Assigned Team Members */}
+          <div className="mt-2 mb-2">
+            <span className="text-xs font-medium opacity-70">👥 Team: </span>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {Array.isArray(task.assignedTo) && task.assignedTo.map((member, idx) => (
+                <span
+                  key={idx}
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    darkMode ? "bg-blue-900 text-blue-200" : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  {member}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <span className={`mt-2 inline-block px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
+            task.status==="Done" ? "bg-green-200 text-green-800"
+            : task.status==="In Progress" ? "bg-yellow-200 text-yellow-800"
+            : "bg-gray-200 text-gray-800"
+          }`}>
+            {task.status}
+          </span>
+
+          {/* Comments */}
+          <div className="mt-2">
+            <button onClick={()=>setOpenCommentsTaskId(openCommentsTaskId===task.id?null:task.id)}
+              className={`${darkMode?"text-blue-300":"text-blue-700"} text-xs sm:text-sm`}>
+              {Array.isArray(task.comments)?`${task.comments.length} comments`:"Add comment"}
+            </button>
+          </div>
+
+          {openCommentsTaskId===task.id && (
+            <div className={`mt-3 p-3 rounded ${darkMode?"bg-gray-900":"bg-slate-100"}`}>
+              <div className="flex gap-2">
+                <input value={commentInput}
+                  onChange={(e)=>setCommentInput(e.target.value)}
+                  placeholder="Write comment"
+                  className={`flex-1 p-2 border rounded ${darkMode?"bg-gray-800 border-gray-700":"bg-white border-slate-300"}`}
+                />
+                <button className="px-3 py-2 bg-blue-600 text-white rounded"
+                  onClick={()=>{ 
+                    if(!commentInput.trim())return;
+                    const newComment = {
+                      id: Date.now(),
+                      text: commentInput.trim(),
+                      author: user.username,
+                      createdAt: new Date().toISOString()
+                    };
+                    addComment(task.id, newComment); 
+                    setCommentInput(""); 
+                  }}>
                   Add
                 </button>
                 <button className={`px-3 py-2 rounded ${darkMode?"bg-gray-700 text-white":"bg-gray-300 text-black"}`}

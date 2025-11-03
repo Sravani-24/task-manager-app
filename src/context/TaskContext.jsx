@@ -8,8 +8,10 @@ export function TaskProvider({ children }) {
 
   const [tasks, setTasks] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem("tasks")) || [];
-    } catch {
+      const stored = localStorage.getItem("tasks");
+      return JSON.parse(stored) || [];
+    } catch (error) {
+      console.error("Error loading tasks:", error);
       return [];
     }
   });
@@ -139,11 +141,18 @@ export function TaskProvider({ children }) {
     if (!user) return [];
     if (user.role === "admin") return tasks || [];
 
-    return (tasks || []).filter(
-      (t) =>
-        t.user?.toLowerCase() === user.username?.toLowerCase() ||
-        t.assignedTo?.toLowerCase() === user.username?.toLowerCase()
-    );
+    return (tasks || []).filter((t) => {
+      // Check if user created the task
+      if (t.user?.toLowerCase() === user.username?.toLowerCase()) return true;
+      
+      // Check if user is assigned to the task (handle both array and string)
+      if (Array.isArray(t.assignedTo)) {
+        return t.assignedTo.some(
+          (assignee) => assignee?.toLowerCase() === user.username?.toLowerCase()
+        );
+      }
+      return t.assignedTo?.toLowerCase() === user.username?.toLowerCase();
+    });
   };
 
   const getUserDashboardStats = () => {
