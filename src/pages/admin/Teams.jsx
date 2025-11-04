@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
-import { useTasks } from "../context/TaskContext";
-import { db } from "../firebaseConfig";
+import NotificationPopup from "../../components/NotificationPopup";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import { useAuth } from "../../context/AuthContext";
+import { useTasks } from "../../context/TaskContext";
+import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import { Users, Plus, Edit2, Trash2, X, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
 
 function TeamsTab({ darkMode }) {
   const { user } = useAuth();
-  const { tasks, addTask } = useTasks();
+  const { tasks, addTask, updateTask } = useTasks();
   const [teams, setTeams] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [showTeamModal, setShowTeamModal] = useState(false);
@@ -15,6 +17,10 @@ function TeamsTab({ darkMode }) {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [expandedTeamTasks, setExpandedTeamTasks] = useState({});
+  
+  // Notification and Confirmation states
+  const [notification, setNotification] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   
   const [teamForm, setTeamForm] = useState({
     name: "",
@@ -80,7 +86,24 @@ function TeamsTab({ darkMode }) {
     e.preventDefault();
     
     if (!teamForm.name || teamForm.members.length === 0) {
-      alert("Please provide team name and select at least one member");
+      setNotification({
+        message: "Please provide team name and select at least one member",
+        type: "warning"
+      });
+      return;
+    }
+
+    // Check for duplicate team names
+    const isDuplicate = teams.some((t) => 
+      t.name.toLowerCase() === teamForm.name.toLowerCase() && 
+      (!editingTeam || t.id !== editingTeam.id)
+    );
+    
+    if (isDuplicate) {
+      setNotification({
+        message: "A team with this name already exists. Please choose a different name.",
+        type: "warning"
+      });
       return;
     }
 
@@ -90,7 +113,10 @@ function TeamsTab({ darkMode }) {
         t.id === editingTeam.id ? { ...teamForm, id: editingTeam.id } : t
       );
       saveTeams(updatedTeams);
-      alert("Team updated successfully!");
+      setNotification({
+        message: "Team updated successfully!",
+        type: "success"
+      });
     } else {
       // Create new team
       const newTeam = {
@@ -100,7 +126,10 @@ function TeamsTab({ darkMode }) {
         createdAt: new Date().toISOString(),
       };
       saveTeams([...teams, newTeam]);
-      alert("Team created successfully!");
+      setNotification({
+        message: "Team created successfully!",
+        type: "success"
+      });
     }
 
     setShowTeamModal(false);
@@ -113,7 +142,10 @@ function TeamsTab({ darkMode }) {
     e.preventDefault();
     
     if (!taskForm.title || !selectedTeam) {
-      alert("Please provide task title");
+      setNotification({
+        message: "Please provide task title",
+        type: "warning"
+      });
       return;
     }
 
@@ -126,7 +158,10 @@ function TeamsTab({ darkMode }) {
       comments: [],
     });
 
-    alert(`Task assigned to team "${selectedTeam.name}"!`);
+    setNotification({
+      message: `Task assigned to team "${selectedTeam.name}"!`,
+      type: "success"
+    });
     setShowTaskModal(false);
     setSelectedTeam(null);
     setTaskForm({
@@ -140,7 +175,30 @@ function TeamsTab({ darkMode }) {
 
   // Delete team
   const handleDeleteTeam = (teamId) => {
-    if (!window.confirm("Delete this team? Tasks assigned to this team will remain.")) return;
+    setConfirmDialog({
+      message: "Delete this team? Associated tasks will be converted to custom tasks.",
+      onConfirm: () => {
+        performDeleteTeam(teamId);
+        setConfirmDialog(null);
+      },
+      onCancel: () => setConfirmDialog(null)
+    });
+  };
+
+  const performDeleteTeam = (teamId) => {
+    
+    // Find all tasks associated with this team
+    const teamTasks = tasks.filter((task) => task.teamId === teamId);
+    
+    // Convert team tasks to custom tasks (remove teamId and teamName, keep assignedTo)
+      teamTasks.forEach((task) => {
+        const updatedTask = { ...task };
+        delete updatedTask.teamId;
+        delete updatedTask.teamName;
+        updateTask(task.id, updatedTask, { silent: true, actor: "system" });
+    });
+    
+    // Delete the team
     const updatedTeams = teams.filter((t) => t.id !== teamId);
     saveTeams(updatedTeams);
   };
@@ -611,6 +669,26 @@ function TeamsTab({ darkMode }) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Notification Popup */}
+      {notification && (
+        <NotificationPopup
+          message={notification.message}
+          type={notification.type}
+          darkMode={darkMode}
+          onClose={() => setNotification(null)}
+        />
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          darkMode={darkMode}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+        />
       )}
     </>
   );

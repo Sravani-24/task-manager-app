@@ -34,12 +34,12 @@ export function TaskProvider({ children }) {
   }, [activityLog]);
 
   //Add activity entry
-  const addActivity = (message) => {
+  const addActivity = (message, options = {}) => {
     if (!user) return;
 
     const newEntry = {
       id: Date.now(),
-      user: user.username,
+      user: options.actor === "system" ? "System" : user.username,
       role: user.role,
       message,
       timestamp: new Date().toISOString(),
@@ -49,8 +49,19 @@ export function TaskProvider({ children }) {
     window.dispatchEvent(new Event("activityLogUpdated"));
   };
 
+  // Permanently clear activity log (state + storage)
+  const clearActivity = () => {
+    try {
+      setActivityLog([]);
+      localStorage.removeItem("activityLog");
+      window.dispatchEvent(new Event("activityLogUpdated"));
+    } catch (e) {
+      console.error("Failed to clear activity log:", e);
+    }
+  };
+
   //Add Task
-  const addTask = (task) => {
+  const addTask = (task, options = {}) => {
     if (!user) return;
 
     const newTask = {
@@ -63,30 +74,30 @@ export function TaskProvider({ children }) {
     };
 
     setTasks((prev = []) => [...prev, newTask]);
-    addActivity(`📝 Created task "${task.title}"`);
+    if (!options.silent) addActivity(`📝 Created task "${task.title}"`, options);
   };
 
   //Update Task
-  const updateTask = (id, updatedData) => {
+  const updateTask = (id, updatedData, options = {}) => {
     const oldTask = tasks.find((t) => t.id === id);
 
     setTasks((prev = []) =>
       prev.map((t) => (t.id === id ? { ...t, ...updatedData } : t))
     );
 
-    addActivity(`✏️ Updated task "${oldTask?.title}"`);
+    if (!options.silent) addActivity(`✏️ Updated task "${oldTask?.title}"`, options);
   };
 
   //Delete Task
-  const deleteTask = (id) => {
+  const deleteTask = (id, options = {}) => {
     const task = tasks?.find((t) => t.id === id);
     setTasks((prev = []) => prev.filter((t) => t.id !== id));
 
-    addActivity(`🗑️ Deleted task "${task?.title}"`);
+    if (!options.silent) addActivity(`🗑️ Deleted task "${task?.title}"`, options);
   };
 
   //Add Comment
-  const addComment = (taskId, comment) => {
+  const addComment = (taskId, comment, options = {}) => {
     const task = tasks.find((t) => t.id === taskId);
 
     setTasks((prev) =>
@@ -97,11 +108,11 @@ export function TaskProvider({ children }) {
       )
     );
 
-    addActivity(`💬 Added comment on "${task?.title}"`);
+    if (!options.silent) addActivity(`💬 Added comment on "${task?.title}"`, options);
   };
 
   //Update Comment
-  const updateComment = (taskId, commentId, newText) => {
+  const updateComment = (taskId, commentId, newText, options = {}) => {
     if (!user || !newText) return;
 
     const task = tasks.find((t) => t.id === taskId);
@@ -116,11 +127,11 @@ export function TaskProvider({ children }) {
       })
     );
 
-    addActivity(`✏️ Updated comment on "${task?.title}"`);
+    if (!options.silent) addActivity(`✏️ Updated comment on "${task?.title}"`, options);
   };
 
   //Delete Comment
-  const deleteComment = (taskId, commentId) => {
+  const deleteComment = (taskId, commentId, options = {}) => {
     if (!user || user.role !== "admin") return;
 
     const task = tasks.find((t) => t.id === taskId);
@@ -133,7 +144,7 @@ export function TaskProvider({ children }) {
       })
     );
 
-    addActivity(`🗑️ Deleted a comment on "${task?.title}"`);
+    if (!options.silent) addActivity(`🗑️ Deleted a comment on "${task?.title}"`, options);
   };
 
   //Get Tasks based on user role
@@ -184,6 +195,7 @@ export function TaskProvider({ children }) {
         getUserTasks,
         getUserDashboardStats,
         addActivity,
+        clearActivity,
         getUserActivity,
       }}
     >

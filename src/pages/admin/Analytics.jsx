@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, Legend, ResponsiveContainer
 } from "recharts";
 import { Users, ChevronDown } from "lucide-react";
-import { useTasks } from "../context/TaskContext"; 
-import { useTheme } from "../context/ThemeContext";
+import { useTasks } from "../../context/TaskContext"; 
+import { useTheme } from "../../context/ThemeContext";
+import { db } from "../../firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
@@ -12,7 +14,19 @@ export default function Analytics() {
   const { tasks } = useTasks();
   const { darkMode } = useTheme();
 
-  // Build a list of users from tasks (creators and assignees)
+  // Fetch users from Firestore
+  const [firestoreUsers, setFirestoreUsers] = useState([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const snap = await getDocs(collection(db, "users"));
+      const usersList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setFirestoreUsers(usersList);
+    };
+    fetchUsers();
+  }, []);
+
+  // Build a list of users from tasks (creators and assignees), filtered to exclude admins and deleted users
   const allUsers = useMemo(() => {
     const normMap = new Map();
     const push = (name) => {
@@ -33,10 +47,21 @@ export default function Analytics() {
         push(t.assignedTo);
       }
     });
+
+    // Get valid usernames from Firestore (excluding admins)
+    const validUsernames = new Set(
+      firestoreUsers
+        .filter(u => u.role?.toLowerCase() !== "admin")
+        .map(u => u.username?.toLowerCase())
+    );
+
+    // Filter to only include users that exist in Firestore and are not admins
     const list = Array.from(normMap, ([value, label]) => ({ value, label }))
+      .filter(item => validUsernames.has(item.value))
       .sort((a, b) => a.label.localeCompare(b.label));
+    
     return [{ value: "All Users", label: "All Users" }, ...list];
-  }, [tasks]);
+  }, [tasks, firestoreUsers]);
 
   // Individual user filters per chart
   const [statusUser, setStatusUser] = useState("All Users");
@@ -54,18 +79,34 @@ export default function Analytics() {
 
   // Compute basic metrics
   const totalTasks = tasks.length;
-  const toDoCount = tasks.filter(t => t.status === "To Do").length;
-  const inProgressCount = tasks.filter(t => t.status === "In Progress").length;
-  const doneCount = tasks.filter(t => t.status === "Done").length;
+  const todayStr = new Date().toISOString().split("T")[0];
+  const isOverdue = (t) => !!t.dueDate && t.status !== "Done" && t.dueDate < todayStr;
 
-  // Tasks by status
+  // Partition counts so overdue is its own bucket (not double-counted in other states)
+  const doneCount = tasks.filter(t => t.status === "Done").length;
+  const overdueCount = tasks.filter(isOverdue).length;
+  const toDoOnTime = tasks.filter(t => t.status === "To Do" && !isOverdue(t)).length;
+  const inProgressOnTime = tasks.filter(t => t.status === "In Progress" && !isOverdue(t)).length;
+
+  // Tasks by status (with Overdue as a separate category to avoid double counting)
   // Status chart (filtered by statusUser)
   const statusData = useMemo(() => {
-    const filtered = tasks.filter((t) => taskMatchesUser(t, statusUser));
-    return ["To Do", "In Progress", "Done"].map((status) => ({
-      status,
-      count: filtered.filter((t) => t.status === status).length,
-    }));
+    const filtered = (tasks || []).filter((t) => taskMatchesUser(t, statusUser));
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const isOverdue = (t) => !!t.dueDate && t.status !== "Done" && t.dueDate < todayStr;
+
+    const done = filtered.filter((t) => t.status === "Done").length;
+    const overdue = filtered.filter(isOverdue).length;
+    const todoOnTime = filtered.filter((t) => t.status === "To Do" && !isOverdue(t)).length;
+    const inProgressOnTime = filtered.filter((t) => t.status === "In Progress" && !isOverdue(t)).length;
+
+    return [
+      { status: "To Do", count: todoOnTime },
+      { status: "In Progress", count: inProgressOnTime },
+      { status: "Done", count: done },
+      { status: "Overdue", count: overdue },
+    ];
   }, [tasks, statusUser]);
 
   // Tasks by priority
@@ -91,11 +132,12 @@ export default function Analytics() {
             <p className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>Task breakdowns and insights by user, status, and priority.</p>
           </div>
           {/* Tiles - responsive grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 lg:flex-1">
             <SummaryTile title="Total" value={totalTasks} from="from-blue-500" to="to-indigo-600" />
-            <SummaryTile title="To Do" value={toDoCount} from="from-slate-400" to="to-slate-500" />
-            <SummaryTile title="In Progress" value={inProgressCount} from="from-violet-500" to="to-purple-600" />
+            <SummaryTile title="To Do" value={toDoOnTime} from="from-slate-400" to="to-slate-500" />
+            <SummaryTile title="In Progress" value={inProgressOnTime} from="from-violet-500" to="to-purple-600" />
             <SummaryTile title="Done" value={doneCount} from="from-emerald-500" to="to-green-600" />
+            <SummaryTile title="Overdue" value={overdueCount} from="from-rose-500" to="to-red-600" />
           </div>
         </div>
       </div>

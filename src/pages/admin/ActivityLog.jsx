@@ -1,10 +1,27 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
-import { Activity } from "lucide-react";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import { useTasks } from "../../context/TaskContext";
+import { useAuth } from "../../context/AuthContext";
+import { Activity, Trash2 } from "lucide-react";
 
 function ActivityLogTab({ darkMode }) {
   const { user } = useAuth();
+  const { clearActivity } = useTasks();
   const [activityLog, setActivityLog] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  const clearAllLogs = () => {
+    setConfirmDialog({
+      message: "Are you sure you want to clear all activity logs? This action cannot be undone.",
+      onConfirm: () => {
+        // Clear from context state and localStorage to make it permanent
+        clearActivity?.();
+        setActivityLog([]); // reflect instantly in this view
+        setConfirmDialog(null);
+      },
+      onCancel: () => setConfirmDialog(null)
+    });
+  };
 
   useEffect(() => {
     const loadLogs = () => {
@@ -62,15 +79,26 @@ function ActivityLogTab({ darkMode }) {
               Track your recent activities and actions
             </p>
           </div>
-          <div className={`p-4 rounded-xl ${
-            darkMode ? "bg-gray-700/50" : "bg-white/80"
-          } shadow-sm`}>
-            <div className="text-center">
-              <p className={`text-2xl font-bold ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
-                {activityLog.length}
-              </p>
-              <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Total Activities</p>
+          <div className="flex items-center gap-3">
+            <div className={`p-4 rounded-xl ${
+              darkMode ? "bg-gray-700/50" : "bg-white/80"
+            } shadow-sm`}>
+              <div className="text-center">
+                <p className={`text-2xl font-bold ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
+                  {activityLog.length}
+                </p>
+                <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Total Activities</p>
+              </div>
             </div>
+            {activityLog.length > 0 && (
+              <button
+                onClick={clearAllLogs}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-medium shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+              >
+                <Trash2 size={18} />
+                Clear All
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -101,7 +129,17 @@ function ActivityLogTab({ darkMode }) {
           </p>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          darkMode={darkMode}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+        />
+      )}
     </>
   );
-}
-export default ActivityLogTab;
+  }
+  export default ActivityLogTab;

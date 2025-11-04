@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import MultiSelectDropdown from "../components/MultiSelectDropdown";
-import { useAuth } from "../context/AuthContext";
-import { useTasks } from "../context/TaskContext";
-import { db } from "../firebaseConfig";
+import MultiSelectDropdown from "../../components/MultiSelectDropdown";
+import NotificationPopup from "../../components/NotificationPopup";
+import ConfirmDialog from "../../components/ConfirmDialog";
+import { useAuth } from "../../context/AuthContext";
+import { useTasks } from "../../context/TaskContext";
+import { db } from "../../firebaseConfig";
 import { collection, getDocs} from "firebase/firestore";
 import { ClipboardList, Search, Plus, UserCircle } from "lucide-react";
 
@@ -28,6 +30,10 @@ function TasksTab({ darkMode, addActivityLog }) {
   const [selectedTask, setSelectedTask] = useState(null);
   const [commentModalTask, setCommentModalTask] = useState(null);
   
+  // Notification and Confirmation states
+  const [notification, setNotification] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  
   // Filters
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All Priority");
@@ -51,7 +57,17 @@ function TasksTab({ darkMode, addActivityLog }) {
         
   // Apply filters
   const filteredTasks = visibleTasks.filter(task => {
-    const statusMatch = filterStatus === "All" || task.status === filterStatus;
+    // Determine overdue status (incomplete tasks with past due date)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isOverdue = !!task.dueDate && task.status !== "Done" && task.dueDate < todayStr;
+
+    // If a specific status is selected (e.g., To Do / In Progress), exclude overdue
+    const statusMatch =
+      filterStatus === "All"
+        ? true
+        : filterStatus === "Overdue"
+        ? isOverdue
+        : task.status === filterStatus && !isOverdue;
     const priorityMatch = filterPriority === "All Priority" || task.priority === filterPriority;
     
     // Handle both array and string for assignedTo
@@ -64,15 +80,18 @@ function TasksTab({ darkMode, addActivityLog }) {
       }
     }
     
-    // Task type filter (individual vs group)
+    // Task type filter (individual vs group vs custom)
     let typeMatch = filterType === "All Tasks";
     if (!typeMatch) {
       if (filterType === "Individual Task") {
         // Individual task: assigned to only 1 person
         typeMatch = Array.isArray(task.assignedTo) ? task.assignedTo.length === 1 : true;
       } else if (filterType === "Group Task") {
-        // Group task: assigned to multiple people
-        typeMatch = Array.isArray(task.assignedTo) && task.assignedTo.length > 1;
+        // Group task: assigned to multiple people with a team
+        typeMatch = Array.isArray(task.assignedTo) && task.assignedTo.length > 1 && task.teamName;
+      } else if (filterType === "Custom Task") {
+        // Custom task: assigned to multiple people without a team
+        typeMatch = Array.isArray(task.assignedTo) && task.assignedTo.length > 1 && !task.teamName;
       }
     }
     
@@ -117,12 +136,87 @@ function TasksTab({ darkMode, addActivityLog }) {
     loadTeams();
   }, []);
 
+  // Function to clean up orphaned tasks
+  const cleanupOrphanedTasks = () => {
+    try {
+      // Read directly from localStorage
+      const storedTasks = JSON.parse(localStorage.getItem("tasks")) || [];
+      console.log("All tasks before cleanup:", storedTasks);
+      
+      const teamIds = new Set(teamsList.map(t => t.id));
+      console.log("Valid team IDs:", Array.from(teamIds));
+      
+      let cleanedCount = 0;
+      
+      // Update tasks in localStorage
+      const updatedTasks = storedTasks.map(task => {
+        console.log(`Checking task "${task.title}": teamId=${task.teamId}, teamName=${task.teamName}`);
+        
+        if (task.teamId && !teamIds.has(task.teamId)) {
+          console.log(`✅ CLEANING: "${task.title}" - Team "${task.teamName}" (ID: ${task.teamId}) no longer exists`);
+          cleanedCount++;
+          const cleanedTask = { ...task };
+          delete cleanedTask.teamId;
+          delete cleanedTask.teamName;
+          console.log("Cleaned task:", cleanedTask);
+          return cleanedTask;
+        }
+        return task;
+      });
+      
+      console.log("Tasks after cleanup:", updatedTasks);
+      
+      // Save back to localStorage
+      localStorage.setItem("tasks", JSON.stringify(updatedTasks));
+      
+      if (cleanedCount > 0) {
+        setNotification({
+          message: `Converted ${cleanedCount} orphaned task(s) to custom tasks. Refreshing page...`,
+          type: "success",
+          onClose: () => window.location.reload()
+        });
+      } else {
+        setNotification({
+          message: "No orphaned tasks found. Check console for details.",
+          type: "info"
+        });
+      }
+    } catch (error) {
+      console.error("Error cleaning up orphaned tasks:", error);
+      setNotification({
+        message: "Error cleaning up tasks. Check console for details.",
+        type: "error"
+      });
+    }
+  };
+
+  // Auto cleanup on load and when teams change
+  useEffect(() => {
+    if (tasks.length === 0 || !teamsList) return;
+    
+    const teamIds = new Set(teamsList.map(t => t.id));
+    
+    tasks.forEach(task => {
+      if (task.teamId && !teamIds.has(task.teamId)) {
+        console.log(`Auto-converting orphaned task "${task.title}" (teamId: ${task.teamId}, teamName: ${task.teamName}) to custom task`);
+        const updatedTask = { ...task };
+        delete updatedTask.teamId;
+        delete updatedTask.teamName;
+        updateTask(task.id, updatedTask, { silent: true, actor: "system" });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamsList]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
   
     
     if (!form.title) {
-      alert("Please fill in title");
+      setNotification({
+        message: "Please fill in title",
+        type: "warning"
+      });
       return;
     }
 
@@ -140,9 +234,36 @@ function TasksTab({ darkMode, addActivityLog }) {
         };
       }
     }
+    // For individual tasks, enforce single user constraint
+    else if (form.taskType === "individual") {
+      assignedUsers = form.assignedTo;
+      if (assignedUsers.length !== 1) {
+        setNotification({
+          message: "Individual tasks must be assigned to exactly one user.",
+          type: "warning"
+        });
+        return;
+      }
+    }
+    // For custom tasks, use the manually selected users
+    else if (form.taskType === "custom") {
+      assignedUsers = form.assignedTo;
+      // Validate that at least 2 users are selected for custom tasks
+      if (assignedUsers.length < 2) {
+        setNotification({
+          message: "Custom tasks require at least 2 users. Please select at least 2 users.",
+          type: "warning"
+        });
+        return;
+      }
+      // No team info for custom tasks
+    }
 
     if (!assignedUsers || assignedUsers.length === 0) {
-      alert("Please assign users or select a team");
+      setNotification({
+        message: "Please assign users or select a team",
+        type: "warning"
+      });
       return;
     }
 
@@ -207,14 +328,40 @@ function TasksTab({ darkMode, addActivityLog }) {
               Manage and track your team's tasks and projects
             </p>
           </div>
-          <div className={`p-4 rounded-xl ${
-            darkMode ? "bg-gray-700/50" : "bg-white/80"
-          } shadow-sm`}>
-            <div className="text-center">
-              <p className={`text-2xl font-bold ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
-                {visibleTasks.length}
-              </p>
-              <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Total Tasks</p>
+          <div className="flex items-center gap-3">
+            {/* Cleanup Orphaned Tasks Button */}
+            {user?.role?.toLowerCase() === "admin" && (
+              <button
+                onClick={() =>
+                  setConfirmDialog({
+                    message:
+                      "Cleanup will scan all tasks and convert any task linked to a deleted/missing team into a Custom task. This removes only the team link (teamId/teamName) and keeps the task, assignees, and content unchanged.",
+                    onConfirm: () => {
+                      cleanupOrphanedTasks();
+                      setConfirmDialog(null);
+                    },
+                    onCancel: () => setConfirmDialog(null),
+                  })
+                }
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  darkMode
+                    ? "bg-yellow-600 hover:bg-yellow-700 text-white"
+                    : "bg-yellow-500 hover:bg-yellow-600 text-white"
+                }`}
+                title="Convert tasks with deleted teams to custom tasks"
+              >
+                🔧 Cleanup
+              </button>
+            )}
+            <div className={`p-4 rounded-xl ${
+              darkMode ? "bg-gray-700/50" : "bg-white/80"
+            } shadow-sm`}>
+              <div className="text-center">
+                <p className={`text-2xl font-bold ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
+                  {visibleTasks.length}
+                </p>
+                <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Total Tasks</p>
+              </div>
             </div>
           </div>
         </div>
@@ -271,7 +418,7 @@ function TasksTab({ darkMode, addActivityLog }) {
               Filter by Status
             </label>
             <div className="flex gap-2 flex-wrap">
-              {["All", "To Do", "In Progress", "Done"].map((status) => (
+              {["All", "To Do", "In Progress", "Done", "Overdue"].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
@@ -287,6 +434,7 @@ function TasksTab({ darkMode, addActivityLog }) {
                   {status === "To Do" && "○ "}
                   {status === "In Progress" && "⟳ "}
                   {status === "Done" && "✓ "}
+                  {status === "Overdue" && "⚠️ "}
                   {status}
                 </button>
               ))}
@@ -299,11 +447,11 @@ function TasksTab({ darkMode, addActivityLog }) {
               Filter by Type
             </label>
             <div className="flex gap-2 flex-wrap">
-              {["All Tasks", "Individual Task", "Group Task"].map((type) => (
+              {["All Tasks", "Individual Task", "Group Task", "Custom Task"].map((type) => (
                 <button
                   key={type}
                   onClick={() => setFilterType(type)}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 ${
+                  className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 ${
                     filterType === type
                       ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg"
                       : darkMode
@@ -314,6 +462,7 @@ function TasksTab({ darkMode, addActivityLog }) {
                   {type === "All Tasks" && "📂 "}
                   {type === "Individual Task" && "👤 "}
                   {type === "Group Task" && "👥 "}
+                  {type === "Custom Task" && "⚙️ "}
                   {type}
                 </button>
               ))}
@@ -424,7 +573,7 @@ function TasksTab({ darkMode, addActivityLog }) {
               {user?.role?.toLowerCase() === "admin" && editingId === "new" && (
                 <div>
                   <label className="block text-sm font-medium mb-2">Task Type</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setForm({ ...form, taskType: "individual", selectedTeam: null })}
@@ -438,7 +587,7 @@ function TasksTab({ darkMode, addActivityLog }) {
                           : "border-gray-300 text-gray-700 hover:border-blue-500"
                       }`}
                     >
-                      👤 Individual Task
+                      👤 Individual
                     </button>
                     <button
                       type="button"
@@ -453,17 +602,33 @@ function TasksTab({ darkMode, addActivityLog }) {
                           : "border-gray-300 text-gray-700 hover:border-purple-500"
                       }`}
                     >
-                      👥 Group Task
+                      👥 Group
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, taskType: "custom", selectedTeam: null, assignedTo: [] })}
+                      className={`px-4 py-3 rounded-lg text-sm font-bold transition-all border-2 ${
+                        form.taskType === "custom"
+                          ? darkMode
+                            ? "bg-green-600 border-green-600 text-white"
+                            : "bg-green-500 border-green-500 text-white"
+                          : darkMode
+                          ? "border-gray-600 text-gray-300 hover:border-green-500"
+                          : "border-gray-300 text-gray-700 hover:border-green-500"
+                      }`}
+                    >
+                      ⚙️ Custom
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Assign Users - Admin only - Show for Individual Task or when editing */}
-              {user?.role?.toLowerCase() === "admin" && (editingId !== "new" || form.taskType === "individual") && (
+              {/* Assign Users - Admin only - Show for Individual Task, Custom Task, or when editing */}
+              {user?.role?.toLowerCase() === "admin" && (editingId !== "new" || form.taskType === "individual" || form.taskType === "custom") && (
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    Assign User {form.taskType === "individual" && <span className="text-xs text-gray-400">(select only one)</span>}
+                    Assign User{form.taskType === "individual" && <span className="text-xs text-gray-400"> (select only one)</span>}
+                    {form.taskType === "custom" && <span className="text-xs text-gray-400"> (select at least 2 users)</span>}
                   </label>
                   <MultiSelectDropdown
                     options={usersList
@@ -552,15 +717,36 @@ function TasksTab({ darkMode, addActivityLog }) {
 
               {/* Due Date - Admin only */}
               {user?.role?.toLowerCase() === "admin" && (
-                <input
-                  type="date"
-                  min={today}
-                  className={`w-full border p-2 rounded ${
-                    darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
-                  }`}
-                  value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                />
+                <div>
+                  <input
+                    type="date"
+                    min={today}
+                    className={`w-full border p-2 rounded ${
+                      darkMode ? "bg-gray-700 text-gray-100" : "bg-white"
+                    }`}
+                    value={form.dueDate}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value;
+                      const today = new Date().toISOString().split('T')[0];
+                      
+                      if (selectedDate && selectedDate < today) {
+                        setConfirmDialog({
+                          message: "The selected due date is in the past. Are you sure you want to continue?",
+                          onConfirm: () => {
+                            setForm({ ...form, dueDate: selectedDate });
+                            setConfirmDialog(null);
+                          },
+                          onCancel: () => setConfirmDialog(null)
+                        });
+                      } else {
+                        setForm({ ...form, dueDate: selectedDate });
+                      }
+                    }}
+                  />
+                  {form.dueDate && form.dueDate < today && (
+                    <p className="text-xs text-red-500 mt-1">⚠️ This date is in the past</p>
+                  )}
+                </div>
               )}
 
               <div className="flex gap-2">
@@ -678,7 +864,14 @@ function TasksTab({ darkMode, addActivityLog }) {
                   <div className="flex-1">
                     <div className={`text-xs font-semibold mb-1 ${
                       darkMode ? "text-gray-400" : "text-gray-500"
-                    }`}>Assigned to:</div>
+                    }`}>
+                      Assigned to:{" "}
+                      {Array.isArray(task.assignedTo) && task.assignedTo.length > 1 && task.teamName && (
+                        <span className={darkMode ? "text-indigo-400" : "text-indigo-600"}>
+                          {task.teamName}
+                        </span>
+                      )}
+                    </div>
                     {Array.isArray(task.assignedTo) ? (
                       <div className="flex flex-wrap gap-1.5">
                         {task.assignedTo.map((user, idx) => (
@@ -703,19 +896,27 @@ function TasksTab({ darkMode, addActivityLog }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-lg">📆</span>
-                  <div>
+                  <div className="flex-1">
                     <div className={`text-xs font-semibold ${
                       darkMode ? "text-gray-400" : "text-gray-500"
                     }`}>Due Date:</div>
-                    <span className={`text-sm font-medium ${
-                      darkMode ? "text-gray-300" : "text-gray-600"
-                    }`}>
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric', 
-                        year: 'numeric' 
-                      }) : "No deadline"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${
+                        darkMode ? "text-gray-300" : "text-gray-600"
+                      }`}>
+                        {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        }) : "No deadline"}
+                      </span>
+                      {/* Overdue Indicator */}
+                      {task.dueDate && task.status !== "Done" && new Date(task.dueDate) < new Date() && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white animate-pulse">
+                          ⚠️ OVERDUE
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -736,9 +937,18 @@ function TasksTab({ darkMode, addActivityLog }) {
                           : [task.assignedTo];
                       }
                       
+                      // Determine task type based on current state
+                      let taskType = "individual";
+                      if (task.teamId && task.teamName) {
+                        taskType = "group";
+                      } else if (assignedToArray.length > 1) {
+                        taskType = "custom";
+                      }
+                      
                       setForm({
                         ...task,
-                        assignedTo: assignedToArray
+                        assignedTo: assignedToArray,
+                        taskType: taskType
                       });
                       setEditingId(task.id);
                     }}
@@ -928,7 +1138,12 @@ function TasksTab({ darkMode, addActivityLog }) {
                   <h4 className={`font-semibold mb-2 text-sm uppercase tracking-wider ${
                     darkMode ? "text-gray-400" : "text-gray-600"
                   }`}>
-                    Assigned To:
+                    Assigned To:{" "}
+                    {Array.isArray(selectedTask.assignedTo) && selectedTask.assignedTo.length > 1 && selectedTask.teamName && (
+                      <span className={`normal-case ${darkMode ? "text-indigo-400" : "text-indigo-600"}`}>
+                        {selectedTask.teamName}
+                      </span>
+                    )}
                   </h4>
                   <div className="flex flex-wrap gap-2">
                     {Array.isArray(selectedTask.assignedTo) ? (
@@ -1012,6 +1227,31 @@ function TasksTab({ darkMode, addActivityLog }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Notification Popup */}
+      {notification && (
+        <NotificationPopup
+          message={notification.message}
+          type={notification.type}
+          darkMode={darkMode}
+          onClose={() => {
+            if (notification.onClose) {
+              notification.onClose();
+            }
+            setNotification(null);
+          }}
+        />
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          darkMode={darkMode}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+        />
       )}
     </>
   );

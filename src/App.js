@@ -1,11 +1,11 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/admin/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Analytics from "./pages/Analytics";
-import UserPage from "./pages/UserPage";
+import Analytics from "./pages/admin/Analytics";
+import UserPage from "./pages/user/UserPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
 import { TaskProvider } from "./context/TaskContext";

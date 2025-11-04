@@ -8,9 +8,9 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
-import { useTasks } from "../context/TaskContext";
+import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
+import { useTasks } from "../../context/TaskContext";
 import UsersTab from "./Users";
 import TasksTab from "./Tasks";
 import AnalyticsTab from "./Analytics";
