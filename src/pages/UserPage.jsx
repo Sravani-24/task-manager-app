@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTasks } from "../context/TaskContext";
 import { useTheme } from "../context/ThemeContext";
-import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from "recharts";
+import { LayoutDashboard, CheckSquare, Users, Activity, Menu } from "lucide-react";
 
 export default function UserPage() {
   const { user } = useAuth();
@@ -10,6 +10,7 @@ export default function UserPage() {
   const { darkMode } = useTheme();
 
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [updatedTask, setUpdatedTask] = useState({ title: "", description: "", status: "" });
   const [openCommentsTaskId, setOpenCommentsTaskId] = useState(null);
@@ -39,7 +40,37 @@ export default function UserPage() {
     { name: "Done", value: userTasks.filter(t => t.status === "Done").length },
   ];
 
-  const COLORS = ["#9CA3AF", "#FACC15", "#22C55E"];
+  // --- Due soon / overdue calculations ---
+  const parseLocalDate = (d) => {
+    if (!d) return null;
+    // Expecting YYYY-MM-DD, convert to local Date
+    if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [y, m, day] = d.split("-").map(Number);
+      return new Date(y, m - 1, day, 23, 59, 59, 999);
+    }
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? null : dt;
+  };
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const inSevenDays = new Date(startOfToday);
+  inSevenDays.setDate(inSevenDays.getDate() + 7);
+
+  const withValidDeadline = (t) => t.dueDate && parseLocalDate(t.dueDate);
+
+  const dueSoonTasks = userTasks
+    .filter((t) => withValidDeadline(t) && t.status !== "Done")
+    .filter((t) => {
+      const due = parseLocalDate(t.dueDate);
+      return due >= startOfToday && due <= inSevenDays;
+    })
+    .sort((a, b) => parseLocalDate(a.dueDate) - parseLocalDate(b.dueDate));
+
+  const overdueTasks = userTasks
+    .filter((t) => withValidDeadline(t) && t.status !== "Done")
+    .filter((t) => parseLocalDate(t.dueDate) < startOfToday)
+    .sort((a, b) => parseLocalDate(a.dueDate) - parseLocalDate(b.dueDate));
 
   const handleEdit = (task) => {
     setEditingTaskId(task.id);
@@ -65,37 +96,106 @@ export default function UserPage() {
     }
   };
 
+  const menuItems = [
+    { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+    { key: "tasks", label: "My Tasks", icon: <CheckSquare size={18} /> },
+    { key: "groupTasks", label: "Group Tasks", icon: <Users size={18} /> },
+    { key: "activity", label: "Activity Log", icon: <Activity size={18} /> },
+  ];
+
   return (
     <div
-      className={`p-4 sm:p-8 min-h-screen overflow-y-auto pb-24 
-      ${darkMode ? "bg-gray-900 text-white" : "bg-gradient-to-b from-slate-50 to-sky-50 text-slate-900"}`}
+      className={`flex h-screen transition-all duration-300 ${
+        darkMode ? "bg-gray-950 text-gray-100" : "bg-slate-50 text-slate-900"
+      }`}
     >
-      <h1 className="text-2xl sm:text-3xl font-bold mb-6">
-        👋 Welcome, {user?.username || "User"}!
-      </h1>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/40 md:hidden z-10"
+        />
+      )}
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        {["dashboard", "tasks", "groupTasks", "activity"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-2 rounded-lg text-sm sm:text-base font-semibold capitalize ${
-              activeTab === tab
-                ? darkMode ? "bg-blue-600 text-white" : "bg-sky-300 text-sky-900"
-                : darkMode ? "bg-gray-700 text-gray-300" : "bg-slate-200 text-slate-700"
-            }`}
-          >
-            {tab === "dashboard" 
-              ? "📊 Dashboard" 
-              : tab === "tasks" 
-              ? "✅ My Tasks" 
-              : tab === "groupTasks"
-              ? "👥 Group Tasks"
-              : "🧾 My Activity Log"}
-          </button>
-        ))}
+      {/* ---------- SIDEBAR ---------- */}
+      <div
+        className={`fixed top-0 left-0 h-screen z-20 transition-transform transform
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        ${
+          darkMode
+            ? "bg-gray-900 border-r border-gray-800"
+            : "bg-gradient-to-b from-sky-50 to-indigo-50 border-r border-slate-200"
+        } w-[80vw] sm:w-64 shadow-lg`}
+      >
+        <div
+          className={`p-5 border-b flex items-center justify-between ${
+            darkMode ? "border-gray-800" : "border-slate-200"
+          }`}
+        >
+          <h2 className="text-xl font-semibold tracking-tight">TeamTrack</h2>
+        </div>
+
+        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-64px)]">
+          {menuItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => {
+                setActiveTab(item.key);
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              className={`flex items-center gap-3 w-full text-left px-4 py-2 rounded-lg font-medium transition-all
+              ${
+                activeTab === item.key
+                  ? darkMode
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-sky-200 text-sky-900 shadow-sm"
+                  : darkMode
+                  ? "hover:bg-gray-800 hover:text-white"
+                  : "hover:bg-sky-100 text-slate-700"
+              }`}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </nav>
       </div>
+
+      {/* ---------- MAIN CONTENT ---------- */}
+      <div
+        className={`flex-1 flex flex-col transition-all duration-300 ${
+          sidebarOpen ? "md:ml-64" : "md:ml-0"
+        }`}
+      >
+        {/* Topbar */}
+        <header
+          className={`flex items-center justify-between p-4 border-b sticky top-0 z-10 
+  ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white/80 backdrop-blur border-slate-200"}`}
+        >
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              className="text-gray-700 dark:text-gray-200 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              <Menu size={22} />
+            </button>
+            <h1 className="text-xl font-semibold capitalize">
+              {activeTab === "dashboard" && "Dashboard"}
+              {activeTab === "tasks" && "My Tasks"}
+              {activeTab === "groupTasks" && "Group Tasks"}
+              {activeTab === "activity" && "Activity Log"}
+            </h1>
+          </div>
+          <div></div>
+        </header>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-24">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-6">
+            👋 Welcome, {user?.username || "User"}!
+          </h1>
 
       {/* DASHBOARD */}
       {activeTab === "dashboard" && (
@@ -112,6 +212,71 @@ export default function UserPage() {
             <Card title="In Progress" value={data[1].value} color={darkMode ? "bg-gray-700" : "bg-amber-100"} />
             <Card title="Done" value={data[2].value} color={darkMode ? "bg-gray-700" : "bg-emerald-100"} />
           </div>
+
+          {/* Due Soon & Overdue */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Due soon (next 7 days) */}
+            <div className={`${darkMode ? "bg-gray-900/40" : "bg-slate-100"} rounded-xl p-4 border ${darkMode ? "border-gray-700" : "border-slate-200"}`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold">⏳ Due in next 7 days</h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? "bg-gray-700 text-gray-200" : "bg-white text-slate-700"}`}>{dueSoonTasks.length}</span>
+              </div>
+              {dueSoonTasks.length === 0 ? (
+                <p className={`${darkMode ? "text-gray-400" : "text-gray-600"} text-sm`}>No upcoming deadlines.</p>
+              ) : (
+                <ul className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {dueSoonTasks.map((t) => (
+                    <li key={t.id} className={`flex items-start gap-3 p-3 rounded-lg border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"}`}>
+                      <div className="text-xl leading-none">📆</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium truncate">{t.title}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                            t.priority === "High"
+                              ? "bg-rose-500 text-white"
+                              : t.priority === "Medium"
+                              ? "bg-amber-500 text-white"
+                              : "bg-sky-500 text-white"
+                          }`}>{t.priority}</span>
+                        </div>
+                        <div className={`${darkMode ? "text-gray-400" : "text-gray-600"} text-xs mt-1`}>
+                          Due {new Date(parseLocalDate(t.dueDate)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Overdue */}
+            <div className={`${darkMode ? "bg-gray-900/40" : "bg-slate-100"} rounded-xl p-4 border ${darkMode ? "border-gray-700" : "border-slate-200"}`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold">⚠️ Overdue</h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? "bg-gray-700 text-gray-200" : "bg-white text-slate-700"}`}>{overdueTasks.length}</span>
+              </div>
+              {overdueTasks.length === 0 ? (
+                <p className={`${darkMode ? "text-gray-400" : "text-gray-600"} text-sm`}>No overdue tasks. Nice!</p>
+              ) : (
+                <ul className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {overdueTasks.map((t) => (
+                    <li key={t.id} className={`flex items-start gap-3 p-3 rounded-lg border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"}`}>
+                      <div className="text-xl leading-none">⏰</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-medium truncate">{t.title}</p>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-rose-600 text-white whitespace-nowrap">Overdue</span>
+                        </div>
+                        <div className={`${darkMode ? "text-gray-400" : "text-gray-600"} text-xs mt-1`}>
+                          Was due {new Date(parseLocalDate(t.dueDate)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -126,7 +291,7 @@ export default function UserPage() {
           {individualTasks.length === 0 ? (
             <p className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}>No individual tasks available.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {individualTasks.map(task => (
                 <TaskItem key={task.id} {...{task, darkMode, editingTaskId, updatedTask, commentInput,
                   openCommentsTaskId, setUpdatedTask, setCommentInput, setEditingTaskId,
@@ -148,7 +313,7 @@ export default function UserPage() {
           {groupTasks.length === 0 ? (
             <p className={`${darkMode ? "text-gray-400" : "text-gray-600"}`}>No group tasks available.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {groupTasks.map(task => (
                 <GroupTaskItem key={task.id} {...{task, darkMode, editingTaskId, updatedTask, commentInput,
                   openCommentsTaskId, setUpdatedTask, setCommentInput, setEditingTaskId,
@@ -182,6 +347,8 @@ export default function UserPage() {
           )}
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -203,8 +370,18 @@ function TaskItem({
   handleEdit, handleSave, handleDelete, addComment, user
 }) {
   return (
-    <li className={`border p-4 rounded-xl shadow text-sm sm:text-base ${
-      darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"
+    <li className={`relative border-l-4 p-5 rounded-xl shadow-lg transition-all hover:shadow-xl ${
+      task.priority === "High"
+        ? darkMode 
+          ? "border-l-rose-500 bg-gradient-to-br from-rose-900/20 to-gray-800/50" 
+          : "border-l-rose-500 bg-gradient-to-br from-rose-50 to-white"
+        : task.priority === "Medium"
+        ? darkMode
+          ? "border-l-amber-500 bg-gradient-to-br from-amber-900/20 to-gray-800/50"
+          : "border-l-amber-500 bg-gradient-to-br from-amber-50 to-white"
+        : darkMode
+          ? "border-l-sky-500 bg-gradient-to-br from-sky-900/20 to-gray-800/50"
+          : "border-l-sky-500 bg-gradient-to-br from-sky-50 to-white"
     }`}>
       {editingTaskId === task.id ? (
         <div className="space-y-3">
@@ -229,42 +406,76 @@ function TaskItem({
           </select>
 
           <div className="flex gap-2">
-            <button className={`${darkMode ? "bg-green-600" : "bg-green-300"} px-4 py-2 rounded-md`}
+            <button className={`${darkMode ? "bg-green-600" : "bg-green-500"} text-white px-4 py-2 rounded-md hover:opacity-90`}
               onClick={()=>handleSave(task.id)}>Save</button>
-            <button className={`${darkMode ? "bg-gray-600" : "bg-gray-300"} px-4 py-2 rounded-md`}
+            <button className={`${darkMode ? "bg-gray-600" : "bg-gray-300"} px-4 py-2 rounded-md hover:opacity-90`}
               onClick={()=>setEditingTaskId(null)}>Cancel</button>
           </div>
         </div>
       ) : (
         <>
-          <h3 className="font-semibold">{task.title}</h3>
-          <p className="text-xs opacity-80 mt-1">{task.description}</p>
+          {/* Priority Corner Badge */}
+          <div className="absolute top-0 right-0">
+            <div className={`px-3 py-0.5 rounded-bl-xl rounded-tr-xl text-xs font-bold shadow-sm ${
+              task.priority === "High"
+                ? "bg-gradient-to-r from-rose-500 to-pink-600 text-white"
+                : task.priority === "Medium"
+                ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                : "bg-gradient-to-r from-sky-500 to-blue-600 text-white"
+            }`}>
+              {task.priority}
+            </div>
+          </div>
 
-          <span className={`mt-2 inline-block px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
-            task.status==="Done" ? "bg-green-200 text-green-800"
-            : task.status==="In Progress" ? "bg-yellow-200 text-yellow-800"
-            : "bg-gray-200 text-gray-800"
+          {/* Header */}
+          <div className="mb-3 mt-1">
+            <h3 className={`font-bold text-lg mb-2 pr-14 leading-tight ${
+              darkMode ? "text-gray-100" : "text-gray-900"
+            }`}>
+              {task.title}
+            </h3>
+            
+            {/* Status Badge with Icon */}
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-1 ${
+                task.status === "Done"
+                  ? "bg-gradient-to-r from-emerald-400 to-teal-500 text-white"
+                  : task.status === "In Progress"
+                  ? "bg-gradient-to-r from-violet-400 to-purple-500 text-white"
+                  : "bg-gradient-to-r from-slate-300 to-gray-400 text-gray-800"
+              }`}>
+                {task.status === "Done" && "✓"}
+                {task.status === "In Progress" && "⟳"}
+                {task.status === "To Do" && "○"}
+                {task.status}
+              </span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <p className={`text-sm mb-3 leading-relaxed ${
+            darkMode ? "text-gray-300" : "text-gray-600"
           }`}>
-            {task.status}
-          </span>
+            {task.description || "No description provided"}
+          </p>
 
           {/* Comments */}
-          <div className="mt-2">
+          <div className="mb-3">
             <button onClick={()=>setOpenCommentsTaskId(openCommentsTaskId===task.id?null:task.id)}
-              className={`${darkMode?"text-blue-300":"text-blue-700"} text-xs sm:text-sm`}>
-              {Array.isArray(task.comments)?`${task.comments.length} comments`:"Add comment"}
+              className={`${darkMode?"text-blue-400 hover:text-blue-300":"text-blue-600 hover:text-blue-700"} text-sm font-medium transition-colors`}>
+              💬 {Array.isArray(task.comments) ? `${task.comments.length} comments` : "Add comment"}
             </button>
           </div>
 
           {openCommentsTaskId===task.id && (
-            <div className={`mt-3 p-3 rounded ${darkMode?"bg-gray-900":"bg-slate-100"}`}>
+            <div className={`mb-3 p-3 rounded-lg ${darkMode?"bg-gray-900/50":"bg-slate-100"}`}>
               <div className="flex gap-2">
                 <input value={commentInput}
                   onChange={(e)=>setCommentInput(e.target.value)}
-                  placeholder="Write comment"
-                  className={`flex-1 p-2 border rounded ${darkMode?"bg-gray-800 border-gray-700":"bg-white border-slate-300"}`}
+                  placeholder="Write a comment..."
+                  className={`flex-1 p-2 border rounded ${darkMode?"bg-gray-800 border-gray-700 text-white":"bg-white border-slate-300"}`}
                 />
-                <button className="px-3 py-2 bg-blue-600 text-white rounded"
+                <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors"
                   onClick={()=>{ 
                     if(!commentInput.trim())return;
                     const newComment = {
@@ -278,13 +489,13 @@ function TaskItem({
                   }}>
                   Add
                 </button>
-                <button className={`px-3 py-2 rounded ${darkMode?"bg-gray-700 text-white":"bg-gray-300 text-black"}`}
+                <button className={`px-3 py-2 rounded font-medium transition-colors ${darkMode?"bg-gray-700 text-white hover:bg-gray-600":"bg-gray-300 text-black hover:bg-gray-400"}`}
                   onClick={()=>{ setOpenCommentsTaskId(null); setCommentInput(""); }}>Close</button>
               </div>
 
               <ul className="mt-2 space-y-2">
                 {(task.comments||[]).map((c)=>(
-                  <li key={c.id} className={`p-2 border rounded text-xs ${darkMode?"border-gray-700":"border-slate-200"}`}>
+                  <li key={c.id} className={`p-2 border rounded text-xs ${darkMode?"border-gray-700 bg-gray-800":"border-slate-200 bg-white"}`}>
                     {c.text}
                     <div className="text-[10px] opacity-70 mt-1">{c.author} • {new Date(c.createdAt).toLocaleString()}</div>
                   </li>
@@ -294,11 +505,17 @@ function TaskItem({
             </div>
           )}
 
-          <div className="flex gap-2 mt-2">
-            <button className={`${darkMode?"bg-blue-600":"bg-sky-200"} px-3 py-1 rounded`} onClick={()=>handleEdit(task)}>Edit</button>
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm hover:shadow-md transition-all"
+              onClick={()=>handleEdit(task)}>
+              ✏️ Edit
+            </button>
             {user.role==="admin" && (
-              <button className={`${darkMode?"bg-red-600":"bg-red-200"} px-3 py-1 rounded`}
-                onClick={()=>handleDelete(task.id)}>Delete</button>
+              <button className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm hover:shadow-md transition-all"
+                onClick={()=>handleDelete(task.id)}>
+                🗑️ Delete
+              </button>
             )}
           </div>
         </>
@@ -314,8 +531,18 @@ function GroupTaskItem({
   handleEdit, handleSave, handleDelete, addComment, user
 }) {
   return (
-    <li className={`border p-4 rounded-xl shadow text-sm sm:text-base ${
-      darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"
+    <li className={`relative border-l-4 p-5 rounded-xl shadow-lg transition-all hover:shadow-xl ${
+      task.priority === "High"
+        ? darkMode 
+          ? "border-l-rose-500 bg-gradient-to-br from-rose-900/20 to-gray-800/50" 
+          : "border-l-rose-500 bg-gradient-to-br from-rose-50 to-white"
+        : task.priority === "Medium"
+        ? darkMode
+          ? "border-l-amber-500 bg-gradient-to-br from-amber-900/20 to-gray-800/50"
+          : "border-l-amber-500 bg-gradient-to-br from-amber-50 to-white"
+        : darkMode
+          ? "border-l-sky-500 bg-gradient-to-br from-sky-900/20 to-gray-800/50"
+          : "border-l-sky-500 bg-gradient-to-br from-sky-50 to-white"
     }`}>
       {editingTaskId === task.id ? (
         <div className="space-y-3">
@@ -340,26 +567,70 @@ function GroupTaskItem({
           </select>
 
           <div className="flex gap-2">
-            <button className={`${darkMode ? "bg-green-600" : "bg-green-300"} px-4 py-2 rounded-md`}
+            <button className={`${darkMode ? "bg-green-600" : "bg-green-500"} text-white px-4 py-2 rounded-md hover:opacity-90`}
               onClick={()=>handleSave(task.id)}>Save</button>
-            <button className={`${darkMode ? "bg-gray-600" : "bg-gray-300"} px-4 py-2 rounded-md`}
+            <button className={`${darkMode ? "bg-gray-600" : "bg-gray-300"} px-4 py-2 rounded-md hover:opacity-90`}
               onClick={()=>setEditingTaskId(null)}>Cancel</button>
           </div>
         </div>
       ) : (
         <>
-          <h3 className="font-semibold">{task.title}</h3>
-          <p className="text-xs opacity-80 mt-1">{task.description}</p>
+          {/* Priority Corner Badge */}
+          <div className="absolute top-0 right-0">
+            <div className={`px-3 py-0.5 rounded-bl-xl rounded-tr-xl text-xs font-bold shadow-sm ${
+              task.priority === "High"
+                ? "bg-gradient-to-r from-rose-500 to-pink-600 text-white"
+                : task.priority === "Medium"
+                ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                : "bg-gradient-to-r from-sky-500 to-blue-600 text-white"
+            }`}>
+              {task.priority}
+            </div>
+          </div>
+
+          {/* Header */}
+          <div className="mb-3 mt-1">
+            <h3 className={`font-bold text-lg mb-2 pr-14 leading-tight ${
+              darkMode ? "text-gray-100" : "text-gray-900"
+            }`}>
+              {task.title}
+            </h3>
+            
+            {/* Status Badge with Icon */}
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-1 ${
+                task.status === "Done"
+                  ? "bg-gradient-to-r from-emerald-400 to-teal-500 text-white"
+                  : task.status === "In Progress"
+                  ? "bg-gradient-to-r from-violet-400 to-purple-500 text-white"
+                  : "bg-gradient-to-r from-slate-300 to-gray-400 text-gray-800"
+              }`}>
+                {task.status === "Done" && "✓"}
+                {task.status === "In Progress" && "⟳"}
+                {task.status === "To Do" && "○"}
+                {task.status}
+              </span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <p className={`text-sm mb-3 leading-relaxed ${
+            darkMode ? "text-gray-300" : "text-gray-600"
+          }`}>
+            {task.description || "No description provided"}
+          </p>
 
           {/* Assigned Team Members */}
-          <div className="mt-2 mb-2">
-            <span className="text-xs font-medium opacity-70">👥 Team: </span>
-            <div className="flex flex-wrap gap-1 mt-1">
+          <div className={`mb-3 pb-3 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+            <span className={`text-xs font-semibold mb-2 block ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+              👥 Team Members:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
               {Array.isArray(task.assignedTo) && task.assignedTo.map((member, idx) => (
                 <span
                   key={idx}
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    darkMode ? "bg-blue-900 text-blue-200" : "bg-blue-100 text-blue-800"
+                  className={`px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
+                    darkMode ? "bg-indigo-600 text-indigo-100" : "bg-indigo-500 text-white"
                   }`}
                 >
                   {member}
@@ -368,31 +639,23 @@ function GroupTaskItem({
             </div>
           </div>
 
-          <span className={`mt-2 inline-block px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
-            task.status==="Done" ? "bg-green-200 text-green-800"
-            : task.status==="In Progress" ? "bg-yellow-200 text-yellow-800"
-            : "bg-gray-200 text-gray-800"
-          }`}>
-            {task.status}
-          </span>
-
           {/* Comments */}
-          <div className="mt-2">
+          <div className="mb-3">
             <button onClick={()=>setOpenCommentsTaskId(openCommentsTaskId===task.id?null:task.id)}
-              className={`${darkMode?"text-blue-300":"text-blue-700"} text-xs sm:text-sm`}>
-              {Array.isArray(task.comments)?`${task.comments.length} comments`:"Add comment"}
+              className={`${darkMode?"text-blue-400 hover:text-blue-300":"text-blue-600 hover:text-blue-700"} text-sm font-medium transition-colors`}>
+              💬 {Array.isArray(task.comments) ? `${task.comments.length} comments` : "Add comment"}
             </button>
           </div>
 
           {openCommentsTaskId===task.id && (
-            <div className={`mt-3 p-3 rounded ${darkMode?"bg-gray-900":"bg-slate-100"}`}>
+            <div className={`mb-3 p-3 rounded-lg ${darkMode?"bg-gray-900/50":"bg-slate-100"}`}>
               <div className="flex gap-2">
                 <input value={commentInput}
                   onChange={(e)=>setCommentInput(e.target.value)}
-                  placeholder="Write comment"
-                  className={`flex-1 p-2 border rounded ${darkMode?"bg-gray-800 border-gray-700":"bg-white border-slate-300"}`}
+                  placeholder="Write a comment..."
+                  className={`flex-1 p-2 border rounded ${darkMode?"bg-gray-800 border-gray-700 text-white":"bg-white border-slate-300"}`}
                 />
-                <button className="px-3 py-2 bg-blue-600 text-white rounded"
+                <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors"
                   onClick={()=>{ 
                     if(!commentInput.trim())return;
                     const newComment = {
@@ -406,13 +669,13 @@ function GroupTaskItem({
                   }}>
                   Add
                 </button>
-                <button className={`px-3 py-2 rounded ${darkMode?"bg-gray-700 text-white":"bg-gray-300 text-black"}`}
+                <button className={`px-3 py-2 rounded font-medium transition-colors ${darkMode?"bg-gray-700 text-white hover:bg-gray-600":"bg-gray-300 text-black hover:bg-gray-400"}`}
                   onClick={()=>{ setOpenCommentsTaskId(null); setCommentInput(""); }}>Close</button>
               </div>
 
               <ul className="mt-2 space-y-2">
                 {(task.comments||[]).map((c)=>(
-                  <li key={c.id} className={`p-2 border rounded text-xs ${darkMode?"border-gray-700":"border-slate-200"}`}>
+                  <li key={c.id} className={`p-2 border rounded text-xs ${darkMode?"border-gray-700 bg-gray-800":"border-slate-200 bg-white"}`}>
                     {c.text}
                     <div className="text-[10px] opacity-70 mt-1">{c.author} • {new Date(c.createdAt).toLocaleString()}</div>
                   </li>
@@ -422,11 +685,17 @@ function GroupTaskItem({
             </div>
           )}
 
-          <div className="flex gap-2 mt-2">
-            <button className={`${darkMode?"bg-blue-600":"bg-sky-200"} px-3 py-1 rounded`} onClick={()=>handleEdit(task)}>Edit</button>
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm hover:shadow-md transition-all"
+              onClick={()=>handleEdit(task)}>
+              ✏️ Edit
+            </button>
             {user.role==="admin" && (
-              <button className={`${darkMode?"bg-red-600":"bg-red-200"} px-3 py-1 rounded`}
-                onClick={()=>handleDelete(task.id)}>Delete</button>
+              <button className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white py-2 rounded-lg text-sm font-bold shadow-sm hover:shadow-md transition-all"
+                onClick={()=>handleDelete(task.id)}>
+                🗑️ Delete
+              </button>
             )}
           </div>
         </>
