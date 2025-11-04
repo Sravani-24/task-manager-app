@@ -35,19 +35,43 @@ const MultiSelectDropdown = ({
       <button
         type="button"
         onClick={() => setOpen((s) => !s)}
-        className={`w-full text-left border p-2 rounded ${
-          darkMode ? "bg-gray-700 text-gray-100 border-gray-600" : "bg-white border-gray-300"
+        className={`w-full text-left border p-2 rounded-lg transition-all ${
+          darkMode ? "bg-gray-700 text-gray-100 border-gray-600 hover:bg-gray-650" : "bg-white border-gray-300 hover:border-gray-400"
         }`}
       >
         <div className="flex items-center justify-between">
-          <div className="truncate">
+          <div className="flex flex-wrap gap-1 flex-1 min-h-[24px] items-center">
             {selected.length === 0 ? (
               <span className="text-gray-400">{placeholder}</span>
             ) : (
-              <span className="text-sm">{selected.join(", ")}</span>
+              selected.map((item, idx) => (
+                <span 
+                  key={idx}
+                  className={`px-2 py-1 rounded-md text-xs font-medium ${
+                    darkMode ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-800"
+                  }`}
+                >
+                  {item}
+                </span>
+              ))
             )}
           </div>
-          <div className="text-xs text-gray-500 ml-2">{selected.length}</div>
+          <div className={`flex items-center gap-2 ml-2 flex-shrink-0 ${
+            darkMode ? "text-gray-400" : "text-gray-500"
+          }`}>
+            <span className="text-xs font-semibold">{selected.length}</span>
+            <svg 
+              className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} 
+              fill="currentColor" 
+              viewBox="0 0 20 20"
+            >
+              <path 
+                fillRule="evenodd" 
+                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" 
+                clipRule="evenodd" 
+              />
+            </svg>
+          </div>
         </div>
       </button>
 
@@ -73,22 +97,39 @@ const MultiSelectDropdown = ({
             {filtered.length === 0 && (
               <div className="text-sm text-gray-500 p-2">No users found</div>
             )}
-            {filtered.map((o) => (
-              <label 
-                key={o.id || o.value} 
-                className={`flex items-center gap-2 cursor-pointer p-2 rounded ${
-                  darkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
-                } w-full`}
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(o.value)}
-                  onChange={() => toggleValue(o.value)}
-                  className="flex-shrink-0"
-                />
-                <span className="text-sm break-words flex-1">{o.label || o.value}</span>
-              </label>
-            ))}
+            {filtered.map((o) => {
+              const isSelected = selected.includes(o.value);
+              return (
+                <div
+                  key={o.id || o.value} 
+                  onClick={() => toggleValue(o.value)}
+                  className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                    isSelected 
+                      ? darkMode 
+                        ? "bg-blue-600 text-white shadow-md" 
+                        : "bg-blue-500 text-white shadow-md"
+                      : darkMode 
+                        ? "hover:bg-gray-700 text-gray-100" 
+                        : "hover:bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  <span className="text-sm font-medium">{o.label || o.value}</span>
+                  {isSelected && (
+                    <svg 
+                      className="w-5 h-5 ml-2 flex-shrink-0" 
+                      fill="currentColor" 
+                      viewBox="0 0 20 20"
+                    >
+                      <path 
+                        fillRule="evenodd" 
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" 
+                        clipRule="evenodd" 
+                      />
+                    </svg>
+                  )}
+                </div>
+              );
+            })}
           </div>
           
           <div className={`flex items-center justify-between p-2 border-t ${

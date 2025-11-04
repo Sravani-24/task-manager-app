@@ -324,7 +324,7 @@ function UsersTab({ darkMode }) {
       )}
 
       {/* Users Grid/Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-16">
         {filteredUsers.length > 0 ? (
           filteredUsers.map((u, index) => (
             <div

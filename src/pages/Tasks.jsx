@@ -11,6 +11,7 @@ function TasksTab({ darkMode, addActivityLog }) {
   const { tasks = [], addTask, updateTask, deleteTask, addComment } = useTasks();
 
   const [usersList, setUsersList] = useState([]); // Firebase user list
+  const [teamsList, setTeamsList] = useState([]); // Teams list
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -18,6 +19,8 @@ function TasksTab({ darkMode, addActivityLog }) {
     status: "To Do",
     priority: "Low",
     dueDate: "",
+    taskType: "individual",
+    selectedTeam: null,
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -29,6 +32,7 @@ function TasksTab({ darkMode, addActivityLog }) {
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All Priority");
   const [filterUser, setFilterUser] = useState("All Users");
+  const [filterType, setFilterType] = useState("All Tasks");
   const [searchQuery, setSearchQuery] = useState("");
 
   const safeTasks = tasks || [];
@@ -60,12 +64,24 @@ function TasksTab({ darkMode, addActivityLog }) {
       }
     }
     
+    // Task type filter (individual vs group)
+    let typeMatch = filterType === "All Tasks";
+    if (!typeMatch) {
+      if (filterType === "Individual Task") {
+        // Individual task: assigned to only 1 person
+        typeMatch = Array.isArray(task.assignedTo) ? task.assignedTo.length === 1 : true;
+      } else if (filterType === "Group Task") {
+        // Group task: assigned to multiple people
+        typeMatch = Array.isArray(task.assignedTo) && task.assignedTo.length > 1;
+      }
+    }
+    
     // Search by task title or description
     const searchMatch = searchQuery.trim() === "" || 
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    return statusMatch && priorityMatch && userMatch && searchMatch;
+    return statusMatch && priorityMatch && userMatch && typeMatch && searchMatch;
   });
 
   /* ✅ Fetch users from Firebase */
@@ -87,15 +103,46 @@ function TasksTab({ darkMode, addActivityLog }) {
     fetchUsers();
   }, []);
 
+  // Fetch teams from localStorage
+  useEffect(() => {
+    const loadTeams = () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem("teams")) || [];
+        setTeamsList(saved);
+      } catch (e) {
+        console.error("Error loading teams:", e);
+        setTeamsList([]);
+      }
+    };
+    loadTeams();
+  }, []);
+
   const handleSubmit = (e) => {
     e.preventDefault();
+  
     
-    alert("🟡 FORM SUBMITTED! Check console for details.");
-    console.log("🟡 Form submitted with data:", form);
+    if (!form.title) {
+      alert("Please fill in title");
+      return;
+    }
+
+    // For group tasks, get team members
+    let assignedUsers = form.assignedTo;
+    let teamInfo = {};
     
-    if (!form.title || !form.assignedTo || form.assignedTo.length === 0) {
-      console.warn("⚠️ Validation failed: Missing title or assigned users");
-      alert("Please fill in title and assign at least one user");
+    if (form.taskType === "group" && form.selectedTeam) {
+      const team = teamsList.find(t => t.id === parseInt(form.selectedTeam));
+      if (team) {
+        assignedUsers = team.members;
+        teamInfo = {
+          teamId: team.id,
+          teamName: team.name,
+        };
+      }
+    }
+
+    if (!assignedUsers || assignedUsers.length === 0) {
+      alert("Please assign users or select a team");
       return;
     }
 
@@ -105,12 +152,19 @@ function TasksTab({ darkMode, addActivityLog }) {
     if (editingId && editingId !== "new") {
       // Update existing task
       console.log("✏️ Updating existing task:", editingId);
-      updateTask(editingId, { ...form, status: normalizedStatus });
+      updateTask(editingId, { 
+        ...form, 
+        status: normalizedStatus,
+        assignedTo: assignedUsers,
+        ...teamInfo,
+      });
     } else {
       // Create new task (local storage)
       console.log("📝 Creating new task with form data:", form);
       addTask({
         ...form,
+        assignedTo: assignedUsers,
+        ...teamInfo,
         comments: [],
         status: normalizedStatus,
       });
@@ -125,6 +179,8 @@ function TasksTab({ darkMode, addActivityLog }) {
       status: "To Do",
       priority: "Low",
       dueDate: "",
+      taskType: "individual",
+      selectedTeam: null,
     });
   };
 
@@ -195,6 +251,8 @@ function TasksTab({ darkMode, addActivityLog }) {
                   status: "To Do",
                   priority: "Low",
                   dueDate: "",
+                  taskType: "individual",
+                  selectedTeam: null,
                 });
               }}
               className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
@@ -205,31 +263,61 @@ function TasksTab({ darkMode, addActivityLog }) {
           )}
         </div>
 
-        {/* Status Filters */}
-        <div className="mb-5">
-          <label className="text-xs font-bold uppercase tracking-wider mb-3 block opacity-70">
-            Filter by Status
-          </label>
-          <div className="flex gap-2 flex-wrap">
-            {["All", "To Do", "In Progress", "Done"].map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 ${
-                  filterStatus === status
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                    : darkMode
-                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                {status === "All" && "📋 "}
-                {status === "To Do" && "○ "}
-                {status === "In Progress" && "⟳ "}
-                {status === "Done" && "✓ "}
-                {status}
-              </button>
-            ))}
+        {/* Status and Task Type Filters */}
+        <div className="mb-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Status Filter */}
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider mb-3 block opacity-70">
+              Filter by Status
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {["All", "To Do", "In Progress", "Done"].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setFilterStatus(status)}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 ${
+                    filterStatus === status
+                      ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
+                      : darkMode
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {status === "All" && "📋 "}
+                  {status === "To Do" && "○ "}
+                  {status === "In Progress" && "⟳ "}
+                  {status === "Done" && "✓ "}
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Task Type Filter */}
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider mb-3 block opacity-70">
+              Filter by Type
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {["All Tasks", "Individual Task", "Group Task"].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 ${
+                    filterType === type
+                      ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg"
+                      : darkMode
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {type === "All Tasks" && "📂 "}
+                  {type === "Individual Task" && "👤 "}
+                  {type === "Group Task" && "👥 "}
+                  {type}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -297,8 +385,8 @@ function TasksTab({ darkMode, addActivityLog }) {
 
       {/* Task Creation/Edit Modal */}
       {editingId && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
-          <div className={`p-6 rounded-lg w-full max-w-md ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50 p-4">
+          <div className={`p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto ${darkMode ? "bg-gray-800" : "bg-white"}`}>
             <h3 className="text-xl font-semibold mb-4">
               {editingId === "new" ? "New Task" : "Edit Task"}
             </h3>
@@ -332,10 +420,51 @@ function TasksTab({ darkMode, addActivityLog }) {
                 />
               )}
 
-              {/* Assign Users - Admin only - Multi Select */}
-              {user?.role?.toLowerCase() === "admin" && (
+              {/* Task Type Selection - Admin only for new tasks */}
+              {user?.role?.toLowerCase() === "admin" && editingId === "new" && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">Assign Users</label>
+                  <label className="block text-sm font-medium mb-2">Task Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, taskType: "individual", selectedTeam: null })}
+                      className={`px-4 py-3 rounded-lg text-sm font-bold transition-all border-2 ${
+                        form.taskType === "individual"
+                          ? darkMode
+                            ? "bg-blue-600 border-blue-600 text-white"
+                            : "bg-blue-500 border-blue-500 text-white"
+                          : darkMode
+                          ? "border-gray-600 text-gray-300 hover:border-blue-500"
+                          : "border-gray-300 text-gray-700 hover:border-blue-500"
+                      }`}
+                    >
+                      👤 Individual Task
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, taskType: "group", assignedTo: [] })}
+                      className={`px-4 py-3 rounded-lg text-sm font-bold transition-all border-2 ${
+                        form.taskType === "group"
+                          ? darkMode
+                            ? "bg-purple-600 border-purple-600 text-white"
+                            : "bg-purple-500 border-purple-500 text-white"
+                          : darkMode
+                          ? "border-gray-600 text-gray-300 hover:border-purple-500"
+                          : "border-gray-300 text-gray-700 hover:border-purple-500"
+                      }`}
+                    >
+                      👥 Group Task
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Assign Users - Admin only - Show for Individual Task or when editing */}
+              {user?.role?.toLowerCase() === "admin" && (editingId !== "new" || form.taskType === "individual") && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Assign User {form.taskType === "individual" && <span className="text-xs text-gray-400">(select only one)</span>}
+                  </label>
                   <MultiSelectDropdown
                     options={usersList
                       .filter((u) => u.role?.toLowerCase() !== "admin")
@@ -345,10 +474,51 @@ function TasksTab({ darkMode, addActivityLog }) {
                         label: u.name || u.username,
                       }))}
                     selected={form.assignedTo || []}
-                    onChange={(selectedUsers) => setForm({ ...form, assignedTo: selectedUsers })}
-                    placeholder="Select users to assign..."
+                    onChange={(selectedUsers) => {
+                      // For individual tasks, only allow one user
+                      if (form.taskType === "individual") {
+                        setForm({ ...form, assignedTo: selectedUsers.slice(-1) });
+                      } else {
+                        setForm({ ...form, assignedTo: selectedUsers });
+                      }
+                    }}
+                    placeholder={form.taskType === "individual" ? "Select one user to assign..." : "Select users to assign..."}
                     darkMode={darkMode}
                   />
+                </div>
+              )}
+
+              {/* Select Team - Admin only - Show for Group Task */}
+              {user?.role?.toLowerCase() === "admin" && editingId === "new" && form.taskType === "group" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Select Team</label>
+                  <select
+                    className={`w-full border p-2 rounded ${
+                      darkMode ? "bg-gray-700 text-gray-100 border-gray-600" : "bg-white border-gray-300"
+                    }`}
+                    value={form.selectedTeam || ""}
+                    onChange={(e) => setForm({ ...form, selectedTeam: e.target.value })}
+                    required
+                  >
+                    <option value="">Select a team...</option>
+                    {teamsList.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name} ({team.members.length} members)
+                      </option>
+                    ))}
+                  </select>
+                  {form.selectedTeam && (
+                    <div className={`mt-2 p-2 rounded text-xs ${darkMode ? "bg-gray-700" : "bg-blue-50"}`}>
+                      <p className="font-semibold mb-1">Team Members:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {teamsList.find(t => t.id === parseInt(form.selectedTeam))?.members.map((member, idx) => (
+                          <span key={idx} className={`px-2 py-0.5 rounded ${darkMode ? "bg-blue-600 text-white" : "bg-blue-500 text-white"}`}>
+                            {member}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -411,6 +581,8 @@ function TasksTab({ darkMode, addActivityLog }) {
                       status: "To Do",
                       priority: "Low",
                       dueDate: "",
+                      taskType: "individual",
+                      selectedTeam: null,
                     });
                   }}
                   className={`px-4 py-2 rounded-md border ${
@@ -426,7 +598,7 @@ function TasksTab({ darkMode, addActivityLog }) {
       )}
 
       {/* Task Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-16">
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task) => (
             <div

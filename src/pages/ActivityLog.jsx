@@ -76,7 +76,7 @@ function ActivityLogTab({ darkMode }) {
       </div>
 
       {activityLog.length > 0 ? (
-        <ul className="space-y-3">
+        <ul className="space-y-3 pb-16">
 
           {activityLog.map((log) => (
             <li

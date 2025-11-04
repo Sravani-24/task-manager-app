@@ -5,6 +5,7 @@ import {
   BarChart2,
   Menu,
   MessageSquare,
+  UsersRound,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
@@ -14,6 +15,7 @@ import UsersTab from "./Users";
 import TasksTab from "./Tasks";
 import AnalyticsTab from "./Analytics";
 import ActivityLogTab from "./ActivityLog";
+import TeamsTab from "./Teams";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("analytics");
@@ -44,6 +46,7 @@ export default function AdminDashboard() {
   const menuItems = isAdmin
     ? [
         { key: "users", label: "Users", icon: <Users size={18} /> },
+        { key: "teams", label: "Teams", icon: <UsersRound size={18} /> },
         { key: "tasks", label: "Tasks", icon: <ClipboardList size={18} /> },
         { key: "analytics", label: "Analytics", icon: <BarChart2 size={18} /> },
         { key: "activity", label: "Activity Log", icon: <MessageSquare size={18} /> },
@@ -136,6 +139,7 @@ export default function AdminDashboard() {
         {/* Tabs */}
         <main className={`p-4 sm:p-6 pb-8 flex-1 overflow-y-auto`}>
           {activeTab === "users" && <UsersTab darkMode={darkMode} addActivityLog={addActivityLog} />}
+          {activeTab === "teams" && <TeamsTab darkMode={darkMode} />}
           {activeTab === "tasks" && <TasksTab darkMode={darkMode} addActivityLog={addActivityLog} />}
           {activeTab === "analytics" && <AnalyticsTab darkMode={darkMode} />}
           {activeTab === "activity" && <ActivityLogTab darkMode={darkMode} />}

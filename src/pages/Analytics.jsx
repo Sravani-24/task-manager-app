@@ -104,7 +104,7 @@ export default function Analytics() {
       {/* Tiles moved up beside the heading */}
 
       {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-16">
         {/* Status Pie Chart */}
         <div className={`shadow rounded-2xl p-4 border ${darkMode ? "bg-gray-900/60 border-gray-800/60" : "bg-white border-gray-200"}`}>
           <div className="flex items-center justify-between mb-2">
