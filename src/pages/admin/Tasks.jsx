@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import MultiSelectDropdown from "../../components/MultiSelectDropdown";
 import NotificationPopup from "../../components/NotificationPopup";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import DataBackup from "../../components/DataBackup";
 import { useAuth } from "../../context/AuthContext";
 import { useTasks } from "../../context/TaskContext";
 import { db } from "../../firebaseConfig";
@@ -33,6 +34,7 @@ function TasksTab({ darkMode, addActivityLog }) {
   // Notification and Confirmation states
   const [notification, setNotification] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [showBackupModal, setShowBackupModal] = useState(false);
   
   // Filters
   const [filterStatus, setFilterStatus] = useState("All");
@@ -329,6 +331,20 @@ function TasksTab({ darkMode, addActivityLog }) {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Import/Export Data Button */}
+            {user?.role?.toLowerCase() === "admin" && (
+              <button
+                onClick={() => setShowBackupModal(true)}
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow ${
+                  darkMode
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                }`}
+                title="Import or export tasks, teams and activity"
+              >
+                Import/Export
+              </button>
+            )}
             {/* Cleanup Orphaned Tasks Button */}
             {user?.role?.toLowerCase() === "admin" && (
               <button
@@ -779,6 +795,24 @@ function TasksTab({ darkMode, addActivityLog }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Backup Modal */}
+      {showBackupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-2xl relative">
+            <button
+              onClick={() => setShowBackupModal(false)}
+              className={`absolute -top-3 -right-3 rounded-full px-3 py-1 text-sm font-semibold shadow ${
+                darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-700"
+              }`}
+              aria-label="Close backup dialog"
+            >
+              ✕
+            </button>
+            <DataBackup darkMode={darkMode} />
           </div>
         </div>
       )}
