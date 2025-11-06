@@ -18,6 +18,9 @@ function UsersTab({ darkMode }) {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   
+  // Filter visibility toggle
+  const [showFilters, setShowFilters] = useState(false);
+  
   // Notification and Confirmation states
   const [notification, setNotification] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -273,6 +276,8 @@ function UsersTab({ darkMode }) {
         setSearchQuery={setSearchQuery}
         roleFilter={roleFilter}
         setRoleFilter={setRoleFilter}
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
         onAddUser={() => {
           setEditingUser(null);
           setForm({ username: "", email: "", role: "user", password: "" });

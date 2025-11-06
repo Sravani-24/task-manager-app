@@ -7,12 +7,16 @@ import { useTasks } from "../../context/TaskContext";
 import { useTheme } from "../../context/ThemeContext";
 import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
+import DataBackup from "../../components/common/DataBackup";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
 export default function Analytics() {
   const { tasks } = useTasks();
   const { darkMode } = useTheme();
+
+  // Backup modal state
+  const [showBackupModal, setShowBackupModal] = useState(false);
 
   // Fetch users from Firestore
   const [firestoreUsers, setFirestoreUsers] = useState([]);
@@ -132,7 +136,7 @@ export default function Analytics() {
       }`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="lg:min-w-[200px]">
-            <h1 className={`text-2xl font-semibold ${darkMode ? "text-gray-100" : "text-gray-900"}`}>Analytics</h1>
+            <h1 className={`text-2xl font-semibold mb-2 ${darkMode ? "text-gray-100" : "text-gray-900"}`}>Analytics</h1>
             <p className={`text-sm ${darkMode ? "text-gray-300" : "text-gray-600"}`}>Task breakdowns and insights by user, status, and priority.</p>
           </div>
           {/* Tiles - responsive grid */}
@@ -146,8 +150,18 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Summary Tiles */}
-      {/* Tiles moved up beside the heading */}
+      {/* Import/Export Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowBackupModal(true)}
+          className={`px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-lg hover:shadow-xl ${
+            darkMode ? "bg-gray-700 hover:bg-gray-600 text-gray-100" : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+          }`}
+          title="Import or export tasks, teams and activity"
+        >
+          📥 Import/Export
+        </button>
+      </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 pb-16">
@@ -217,6 +231,24 @@ export default function Analytics() {
           )}
         </div>
       </div>
+
+      {/* Backup Modal */}
+      {showBackupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-2xl relative">
+            <button
+              onClick={() => setShowBackupModal(false)}
+              className={`absolute -top-3 -right-3 rounded-full px-3 py-1 text-sm font-semibold shadow ${
+                darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-700"
+              }`}
+              aria-label="Close backup dialog"
+            >
+              ✕
+            </button>
+            <DataBackup darkMode={darkMode} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import NotificationPopup from "../../components/common/NotificationPopup";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-import DataBackup from "../../components/common/DataBackup";
 import TasksHeader from "../../components/tasks/TasksHeader";
 import TaskSearchBar from "../../components/tasks/TaskSearchBar";
 import TaskFilters from "../../components/tasks/TaskFilters";
@@ -39,7 +38,6 @@ function TasksTab({ darkMode, addActivityLog }) {
   // Notification and Confirmation states
   const [notification, setNotification] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const [showBackupModal, setShowBackupModal] = useState(false);
   
   // Bulk selection
   const [bulkMode, setBulkMode] = useState(false);
@@ -51,6 +49,9 @@ function TasksTab({ darkMode, addActivityLog }) {
   const [filterUser, setFilterUser] = useState("All Users");
   const [filterType, setFilterType] = useState("All Tasks");
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Filter visibility toggle
+  const [showFilters, setShowFilters] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -441,7 +442,6 @@ function TasksTab({ darkMode, addActivityLog }) {
           darkMode={darkMode}
           isAdmin={user?.role?.toLowerCase() === "admin"}
           totalVisible={visibleTasks.length}
-          onOpenBackup={() => setShowBackupModal(true)}
           onRequestCleanup={() =>
             setConfirmDialog({
               message:
@@ -455,50 +455,68 @@ function TasksTab({ darkMode, addActivityLog }) {
           }
         />
 
-        {/* Search Bar with New Task Button */}
-        <TaskSearchBar
-          darkMode={darkMode}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          isAdmin={user?.role?.toLowerCase() === "admin"}
-          onCreateNew={() => {
-            setEditingId("new");
-            setForm({
-              title: "",
-              description: "",
-              assignedTo: [],
-              status: "To Do",
-              priority: "Low",
-              dueDate: "",
-              taskType: "individual",
-              selectedTeam: null,
-            });
-          }}
-          extraRight={
-            user?.role?.toLowerCase() === "admin" ? (
-              <button
-                onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()); }}
-                className={`${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap`}
-              >
-                {bulkMode ? 'Exit bulk select' : 'Bulk select'}
-              </button>
-            ) : null
-          }
-        />
+        {/* Toggle Filters Button */}
+        <button
+          onClick={() => setShowFilters(prev => !prev)}
+          className={`flex items-center gap-2 mt-4 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            darkMode 
+              ? "bg-gray-700/50 hover:bg-gray-600/50 text-gray-200" 
+              : "bg-white/50 hover:bg-white/80 text-gray-700"
+          } border ${darkMode ? "border-gray-600" : "border-gray-300"}`}
+        >
+          <span>{showFilters ? '▼' : '▶'}</span>
+          <span>{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
+        </button>
 
-        {/* Filters */}
-        <TaskFilters
-          darkMode={darkMode}
-          filterStatus={filterStatus}
-          setFilterStatus={setFilterStatus}
-          filterType={filterType}
-          setFilterType={setFilterType}
-          filterPriority={filterPriority}
-          setFilterPriority={setFilterPriority}
-          filterUser={filterUser}
-          setFilterUser={setFilterUser}
-          usersList={usersList}
-        />
+        {/* Collapsible Filters Section */}
+        {showFilters && (
+          <div className="mt-4 space-y-4">
+            {/* Search Bar with New Task Button */}
+            <TaskSearchBar
+              darkMode={darkMode}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              isAdmin={user?.role?.toLowerCase() === "admin"}
+              onCreateNew={() => {
+                setEditingId("new");
+                setForm({
+                  title: "",
+                  description: "",
+                  assignedTo: [],
+                  status: "To Do",
+                  priority: "Low",
+                  dueDate: "",
+                  taskType: "individual",
+                  selectedTeam: null,
+                });
+              }}
+              extraRight={
+                user?.role?.toLowerCase() === "admin" ? (
+                  <button
+                    onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()); }}
+                    className={`${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap`}
+                  >
+                    {bulkMode ? 'Exit bulk select' : 'Bulk select'}
+                  </button>
+                ) : null
+              }
+            />
+
+            {/* Filters */}
+            <TaskFilters
+              darkMode={darkMode}
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              filterType={filterType}
+              setFilterType={setFilterType}
+              filterPriority={filterPriority}
+              setFilterPriority={setFilterPriority}
+              filterUser={filterUser}
+              setFilterUser={setFilterUser}
+              usersList={usersList}
+            />
+          </div>
+        )}
       </div>
 
       {/* Task Creation/Edit Modal */}
@@ -537,24 +555,6 @@ function TasksTab({ darkMode, addActivityLog }) {
             });
           }}
         />
-      )}
-
-      {/* Backup Modal */}
-      {showBackupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-2xl relative">
-            <button
-              onClick={() => setShowBackupModal(false)}
-              className={`absolute -top-3 -right-3 rounded-full px-3 py-1 text-sm font-semibold shadow ${
-                darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-700"
-              }`}
-              aria-label="Close backup dialog"
-            >
-              ✕
-            </button>
-            <DataBackup darkMode={darkMode} />
-          </div>
-        </div>
       )}
 
       {/* Bulk actions bar */}

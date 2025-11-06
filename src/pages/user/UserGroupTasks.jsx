@@ -1,7 +1,7 @@
 ﻿import React, { useMemo, useState } from "react";
 import UserGroupTaskItem from "./UserGroupTaskItem";
 import TaskFilters from "../../components/tasks/TaskFilters";
-import { Search } from "lucide-react";
+import { Search, ChevronDown, ChevronRight } from "lucide-react";
 
 function UserGroupTasks({ 
   darkMode, groupTasks, editingTaskId, updatedTask, setUpdatedTask, setEditingTaskId, 
@@ -11,6 +11,7 @@ function UserGroupTasks({
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPriority, setFilterPriority] = useState("All Priority");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,69 +46,92 @@ function UserGroupTasks({
   }, [filterType, filterStatus, filterPriority, searchQuery]);
 
   return (
-    <div className={`p-4 sm:p-6 rounded-2xl shadow ${darkMode ? "bg-gray-800" : "bg-white/90"}`}>
+    <div className={`p-4 sm:p-6 pb-8 rounded-2xl shadow ${darkMode ? "bg-gray-800" : "bg-white/90"}`}>
       <h2 className="text-xl sm:text-2xl font-semibold mb-4">📋 Team Tasks</h2>
       <p className={`text-sm mb-4 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
       </p>
 
+      {/* Toggle Filters Button */}
       <div className="mb-4">
-        <div className="relative">
-          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
-            darkMode ? "text-gray-400" : "text-gray-500"
-          }`} />
-          <input
-            type="text"
-            placeholder="Search by task name or description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className={`w-full pl-10 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
-              darkMode 
-                ? "bg-gray-700/50 border-gray-600 text-gray-100 placeholder-gray-400" 
-                : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500"
-            }`}
+        <button
+          onClick={() => setShowFilters(prev => !prev)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+            darkMode 
+              ? "bg-gray-700 hover:bg-gray-600 text-gray-200" 
+              : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+          }`}
+        >
+          {showFilters ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          {showFilters ? "Hide Filters" : "Show Filters"}
+        </button>
+      </div>
+
+      {/* Collapsible Search and Filters Section */}
+      {showFilters && (
+        <>
+          {/* Search Bar */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${
+                darkMode ? "text-gray-400" : "text-gray-500"
+              }`} />
+              <input
+                type="text"
+                placeholder="Search by task name or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full pl-10 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
+                  darkMode 
+                    ? "bg-gray-700/50 border-gray-600 text-gray-100 placeholder-gray-400" 
+                    : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500"
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Filters */}
+          <TaskFilters
+            darkMode={darkMode}
+            filterStatus={filterStatus}
+            setFilterStatus={setFilterStatus}
+            filterPriority={filterPriority}
+            setFilterPriority={setFilterPriority}
+            showStatus={true}
+            showType={false}
+            showPriority={true}
+            showUser={false}
           />
-        </div>
-      </div>
 
-      <TaskFilters
-        darkMode={darkMode}
-        filterStatus={filterStatus}
-        setFilterStatus={setFilterStatus}
-        filterPriority={filterPriority}
-        setFilterPriority={setFilterPriority}
-        showStatus={true}
-        showType={false}
-        showPriority={true}
-        showUser={false}
-      />
-
-      <div className="mb-4">
-        <label className="text-xs font-bold uppercase tracking-wider mb-3 block opacity-70">
-          Filter by Type
-        </label>
-        <div className="flex gap-2 flex-wrap">
-          {["All", "Team", "Custom"].map((type) => (
-            <button
-              key={type}
-              onClick={() => setFilterType(type)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
-                filterType === type
-                  ? darkMode
-                    ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg"
-                    : "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg"
-                  : darkMode
-                  ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              {type === "All" && "📂 "}
-              {type === "Team" && "👥 "}
-              {type === "Custom" && "⚙️ "}
-              {type}
-            </button>
-          ))}
-        </div>
-      </div>
+          {/* Type Filter */}
+          <div className="mb-4">
+            <label className="text-xs font-bold uppercase tracking-wider mb-3 block opacity-70">
+              Filter by Type
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {["All", "Team", "Custom"].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                    filterType === type
+                      ? darkMode
+                        ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg"
+                        : "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg"
+                      : darkMode
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  {type === "All" && "📂 "}
+                  {type === "Team" && "👥 "}
+                  {type === "Custom" && "⚙️ "}
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {filteredTasks.length === 0 ? (
         <p className={`mt-6 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>

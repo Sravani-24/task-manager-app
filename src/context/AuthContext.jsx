@@ -72,7 +72,6 @@ export function AuthProvider({ children }) {
 
     await setDoc(doc(db, "users", res.user.uid), userData);
 
-    // Sign out the newly created user immediately to prevent auto-login
     await signOut(auth);
     
     return { uid: res.user.uid, ...userData };

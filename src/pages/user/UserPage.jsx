@@ -188,7 +188,7 @@ export default function UserPage() {
 
       {/* ---------- MAIN CONTENT ---------- */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 ${
+        className={`flex-1 flex flex-col transition-all duration-300 overflow-hidden ${
           sidebarOpen ? "md:ml-64" : "md:ml-0"
         }`}
       >
@@ -216,10 +216,11 @@ export default function UserPage() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-40">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-6">
-            👋 Welcome, {user?.username || "User"}!
-          </h1>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-8 lg:p-10">
+          <div className="pb-8">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-6">
+              👋 Welcome, {user?.username || "User"}!
+            </h1>
 
       {/* DASHBOARD */}
       {activeTab === "dashboard" && (
@@ -282,6 +283,7 @@ export default function UserPage() {
           activityLogs={activityLogs}
         />
       )}
+          </div>
         </div>
       </div>
 

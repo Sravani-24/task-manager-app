@@ -140,7 +140,7 @@ export default function AdminDashboard() {
   <div></div>
 </header>
         {/* Tabs */}
-        <main className={`p-3 sm:p-4 md:p-6 pb-8 flex-1 overflow-y-auto overflow-x-hidden`}>
+        <main className={`p-3 sm:p-4 md:p-8 lg:p-10 pb-8 flex-1 overflow-y-auto overflow-x-hidden`}>
           {activeTab === "users" && <UsersTab darkMode={darkMode} addActivityLog={addActivityLog} />}
           {activeTab === "teams" && <TeamsTab darkMode={darkMode} />}
           {activeTab === "tasks" && <TasksTab darkMode={darkMode} addActivityLog={addActivityLog} />}

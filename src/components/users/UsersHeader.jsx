@@ -1,7 +1,7 @@
 import React from "react";
 import { Users, Shield, UserCircle, Plus, Search } from "lucide-react";
 
-function UsersHeader({ darkMode, usersCount, adminsCount, searchQuery, setSearchQuery, roleFilter, setRoleFilter, onAddUser }) {
+function UsersHeader({ darkMode, usersCount, adminsCount, searchQuery, setSearchQuery, roleFilter, setRoleFilter, onAddUser, showFilters, setShowFilters }) {
   return (
     <div className={`mb-6 p-6 rounded-2xl shadow-lg bg-gradient-to-br ${
       darkMode 
@@ -36,57 +36,72 @@ function UsersHeader({ darkMode, usersCount, adminsCount, searchQuery, setSearch
         </div>
       </div>
 
-      {/* Search and Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-        {/* Search Input */}
-        <div className="flex-1 relative">
-          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${
-            darkMode ? "text-gray-400" : "text-gray-500"
-          }`} size={18} />
-          <input
-            type="text"
-            placeholder="Search by username or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className={`w-full pl-10 pr-4 py-2.5 rounded-xl font-medium shadow-sm transition-all border-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              darkMode 
-                ? "bg-gray-700 text-gray-100 border-gray-600 placeholder-gray-400" 
-                : "bg-white text-gray-900 border-gray-200 placeholder-gray-500"
-            }`}
-          />
-        </div>
+      {/* Toggle Filters Button */}
+      <button
+        onClick={() => setShowFilters(prev => !prev)}
+        className={`flex items-center gap-2 mb-4 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          darkMode 
+            ? "bg-gray-700/50 hover:bg-gray-600/50 text-gray-200" 
+            : "bg-white/50 hover:bg-white/80 text-gray-700"
+        } border ${darkMode ? "border-gray-600" : "border-gray-300"}`}
+      >
+        <span>{showFilters ? '▼' : '▶'}</span>
+        <span>{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
+      </button>
 
-        {/* Role Filter Buttons */}
-        <div className="flex gap-2 flex-wrap">
-          {["All", "User", "Admin"].map((role) => (
-            <button
-              key={role}
-              onClick={() => setRoleFilter(role)}
-              className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2 ${
-                roleFilter === role
-                  ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
-                  : darkMode
-                  ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+      {/* Collapsible Search and Filter Bar */}
+      {showFilters && (
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Search Input */}
+          <div className="flex-1 relative">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${
+              darkMode ? "text-gray-400" : "text-gray-500"
+            }`} size={18} />
+            <input
+              type="text"
+              placeholder="Search by username or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full pl-10 pr-4 py-2.5 rounded-xl font-medium shadow-sm transition-all border-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                darkMode 
+                  ? "bg-gray-700 text-gray-100 border-gray-600 placeholder-gray-400" 
+                  : "bg-white text-gray-900 border-gray-200 placeholder-gray-500"
               }`}
-            >
-              {role === "All" && <Users size={16} />}
-              {role === "User" && <UserCircle size={16} />}
-              {role === "Admin" && <Shield size={16} />}
-              {role}
-            </button>
-          ))}
-        </div>
+            />
+          </div>
 
-        {/* Add User Button */}
-        <button
-          onClick={onAddUser}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
-        >
-          <Plus size={20} />
-          Add User
-        </button>
-      </div>
+          {/* Role Filter Buttons */}
+          <div className="flex gap-2 flex-wrap">
+            {["All", "User", "Admin"].map((role) => (
+              <button
+                key={role}
+                onClick={() => setRoleFilter(role)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2 ${
+                  roleFilter === role
+                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg"
+                    : darkMode
+                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {role === "All" && <Users size={16} />}
+                {role === "User" && <UserCircle size={16} />}
+                {role === "Admin" && <Shield size={16} />}
+                {role}
+              </button>
+            ))}
+          </div>
+
+          {/* Add User Button */}
+          <button
+            onClick={onAddUser}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+          >
+            <Plus size={20} />
+            Add User
+          </button>
+        </div>
+      )}
     </div>
   );
 }

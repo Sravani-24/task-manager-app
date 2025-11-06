@@ -45,7 +45,7 @@ function UserDashboard({ darkMode, userTasks, parseLocalDate }) {
       {/* Due Soon & Overdue */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Due soon (next 7 days) */}
-        <div className={`${darkMode ? "bg-gray-900/40" : "bg-slate-100"} rounded-xl p-4 border ${darkMode ? "border-gray-700" : "border-slate-200"}`}>
+        <div className={`${darkMode ? "bg-gray-900/40" : "bg-slate-100"} rounded-xl p-4 border ${darkMode ? "border-gray-700" : "border-slate-200"} flex flex-col`}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold">⏳ Due in next 7 days</h3>
             <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? "bg-gray-700 text-gray-200" : "bg-white text-slate-700"}`}>{dueSoonTasks.length}</span>
@@ -53,7 +53,7 @@ function UserDashboard({ darkMode, userTasks, parseLocalDate }) {
           {dueSoonTasks.length === 0 ? (
             <p className={`${darkMode ? "text-gray-400" : "text-gray-600"} text-sm`}>No upcoming deadlines.</p>
           ) : (
-            <ul className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+            <ul className="space-y-2 overflow-y-auto pr-1" style={{ maxHeight: '260px' }}>
               {dueSoonTasks.map((t) => (
                 <li key={t.id} className={`flex items-start gap-3 p-3 rounded-lg border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"}`}>
                   <div className="text-xl leading-none">📆</div>
@@ -79,7 +79,7 @@ function UserDashboard({ darkMode, userTasks, parseLocalDate }) {
         </div>
 
         {/* Overdue */}
-        <div className={`${darkMode ? "bg-gray-900/40" : "bg-slate-100"} rounded-xl p-4 border ${darkMode ? "border-gray-700" : "border-slate-200"}`}>
+        <div className={`${darkMode ? "bg-gray-900/40" : "bg-slate-100"} rounded-xl p-4 border ${darkMode ? "border-gray-700" : "border-slate-200"} ${overdueTasks.length === 0 ? 'flex-shrink-0 self-start' : 'flex flex-col'}`}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold">⚠️ Overdue</h3>
             <span className={`text-xs px-2 py-0.5 rounded-full ${darkMode ? "bg-gray-700 text-gray-200" : "bg-white text-slate-700"}`}>{overdueTasks.length}</span>
@@ -87,7 +87,7 @@ function UserDashboard({ darkMode, userTasks, parseLocalDate }) {
           {overdueTasks.length === 0 ? (
             <p className={`${darkMode ? "text-gray-400" : "text-gray-600"} text-sm`}>No overdue tasks. Nice!</p>
           ) : (
-            <ul className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+            <ul className="space-y-2 overflow-y-auto pr-1" style={{ maxHeight: '260px' }}>
               {overdueTasks.map((t) => (
                 <li key={t.id} className={`flex items-start gap-3 p-3 rounded-lg border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-slate-200"}`}>
                   <div className="text-xl leading-none">⏰</div>

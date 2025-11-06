@@ -5,7 +5,6 @@ export default function TasksHeader({
   darkMode,
   isAdmin,
   totalVisible,
-  onOpenBackup,
   onRequestCleanup,
 }) {
   return (
@@ -20,17 +19,6 @@ export default function TasksHeader({
         </p>
       </div>
       <div className="flex items-center gap-3">
-        {isAdmin && (
-          <button
-            onClick={onOpenBackup}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow ${
-              darkMode ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-blue-600 hover:bg-blue-700 text-white"
-            }`}
-            title="Import or export tasks, teams and activity"
-          >
-            Import/Export
-          </button>
-        )}
         {isAdmin && (
           <button
             onClick={onRequestCleanup}
