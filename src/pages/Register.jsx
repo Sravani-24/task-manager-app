@@ -48,8 +48,8 @@ const Register = () => {
       {/* Left Side - Brand Section */}
       <div className={`hidden lg:flex lg:w-1/2 relative overflow-hidden ${
         darkMode 
-          ? "bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900" 
-          : "bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600"
+          ? "bg-gradient-to-br from-orange-900 via-amber-900 to-yellow-900" 
+          : "bg-gradient-to-br from-orange-400 via-amber-400 to-yellow-400"
       }`}>
         {/* Animated Background Pattern */}
         <div className="absolute inset-0 opacity-10">
@@ -63,7 +63,7 @@ const Register = () => {
             <h1 className="text-5xl font-bold mb-4 animate-slideUp">
               Join TeamTrack
             </h1>
-            <p className="text-xl text-green-100 mb-8 animate-slideUp" style={{ animationDelay: '0.1s' }}>
+            <p className="text-xl text-orange-100 mb-8 animate-slideUp" style={{ animationDelay: '0.1s' }}>
               Start managing your team's tasks efficiently today
             </p>
           </div>
@@ -76,7 +76,7 @@ const Register = () => {
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Real-time Collaboration</h3>
-                <p className="text-green-100 text-sm">Work together seamlessly with your team members</p>
+                <p className="text-orange-100 text-sm">Work together seamlessly with your team members</p>
               </div>
             </div>
 
@@ -86,7 +86,7 @@ const Register = () => {
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Team Management</h3>
-                <p className="text-green-100 text-sm">Organize teams and assign tasks efficiently</p>
+                <p className="text-orange-100 text-sm">Organize teams and assign tasks efficiently</p>
               </div>
             </div>
 
@@ -96,7 +96,7 @@ const Register = () => {
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Track Progress</h3>
-                <p className="text-green-100 text-sm">Monitor task completion and team performance</p>
+                <p className="text-orange-100 text-sm">Monitor task completion and team performance</p>
               </div>
             </div>
           </div>
@@ -158,7 +158,7 @@ const Register = () => {
                     placeholder="Enter your username"
                     value={form.username}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                       darkMode 
                         ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400" 
                         : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500"
@@ -185,7 +185,7 @@ const Register = () => {
                     placeholder="Enter your email"
                     value={form.email}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                       darkMode 
                         ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400" 
                         : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500"
@@ -212,7 +212,7 @@ const Register = () => {
                     placeholder="Create a password"
                     value={form.password}
                     onChange={handleChange}
-                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all ${
                       darkMode 
                         ? "bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400" 
                         : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-500"
@@ -226,7 +226,13 @@ const Register = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 transition-all duration-200 flex items-center justify-center gap-2 group"
+                className={`w-full py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 transition-all duration-200 flex items-center justify-center gap-2 group ${
+                  loading 
+                    ? "bg-gradient-to-r from-gray-500 to-gray-600 cursor-not-allowed text-white"
+                    : darkMode
+                    ? "bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white"
+                    : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+                }`}
               >
                 {loading ? "Creating Account..." : (
                   <>
@@ -256,7 +262,9 @@ const Register = () => {
               <div className="text-center">
                 <Link 
                   to="/login" 
-                  className={`text-green-600 hover:text-green-700 font-semibold text-sm hover:underline transition-colors`}
+                  className={`font-semibold text-sm hover:underline transition-colors ${
+                    darkMode ? "text-orange-400 hover:text-orange-300" : "text-orange-600 hover:text-orange-700"
+                  }`}
                 >
                   Sign in to your account →
                 </Link>

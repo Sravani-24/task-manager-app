@@ -96,6 +96,9 @@ export default function AdminDashboard() {
               key={item.key}
               onClick={() => {
                 setActiveTab(item.key);
+                if (typeof window !== "undefined" && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
               }}
               className={`flex items-center gap-3 w-full text-left px-4 py-2 rounded-lg font-medium transition-all
               ${
@@ -137,7 +140,7 @@ export default function AdminDashboard() {
   <div></div>
 </header>
         {/* Tabs */}
-        <main className={`p-4 sm:p-6 pb-8 flex-1 overflow-y-auto`}>
+        <main className={`p-3 sm:p-4 md:p-6 pb-8 flex-1 overflow-y-auto overflow-x-hidden`}>
           {activeTab === "users" && <UsersTab darkMode={darkMode} addActivityLog={addActivityLog} />}
           {activeTab === "teams" && <TeamsTab darkMode={darkMode} />}
           {activeTab === "tasks" && <TasksTab darkMode={darkMode} addActivityLog={addActivityLog} />}

@@ -59,6 +59,25 @@ export function AuthProvider({ children }) {
     return { uid: res.user.uid, ...userData };
   };
 
+  // Create user by admin (does NOT auto-login)
+  const createUser = async (email, password, username, role = "user") => {
+    const res = await createUserWithEmailAndPassword(auth, email, password);
+
+    const userData = {
+      username,
+      email,
+      role: role.toLowerCase(),
+      createdAt: new Date(),
+    };
+
+    await setDoc(doc(db, "users", res.user.uid), userData);
+
+    // Sign out the newly created user immediately to prevent auto-login
+    await signOut(auth);
+    
+    return { uid: res.user.uid, ...userData };
+  };
+
   const login = async (email, password) => {
     const res = await signInWithEmailAndPassword(auth, email, password);
     const snap = await getDoc(doc(db, "users", res.user.uid));
@@ -92,7 +111,7 @@ const getAllUsers = async () => {
   };
 
   return (
-<AuthContext.Provider value={{ user, register, login, logout, getAllUsers }}>
+<AuthContext.Provider value={{ user, register, createUser, login, logout, getAllUsers }}>
       {!loading && children}
     </AuthContext.Provider>
   );

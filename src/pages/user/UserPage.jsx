@@ -8,6 +8,10 @@ import UserIndividualTasks from "./UserIndividualTasks";
 import UserGroupTasks from "./UserGroupTasks";
 import UserMyTeams from "./UserMyTeams";
 import UserActivityLog from "./UserActivityLog";
+import CommentsModal from "../../components/tasks/CommentsModal";
+import TaskDetailsModal from "../../components/tasks/TaskDetailsModal";
+import StatusEditModal from "../../components/tasks/StatusEditModal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 export default function UserPage() {
   const { user } = useAuth();
@@ -18,11 +22,23 @@ export default function UserPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [updatedTask, setUpdatedTask] = useState({ title: "", description: "", status: "" });
-  const [openCommentsTaskId, setOpenCommentsTaskId] = useState(null);
+  const [commentModalTask, setCommentModalTask] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
   const [commentInput, setCommentInput] = useState("");
   const [userTeams, setUserTeams] = useState([]);
+  const [statusEditTask, setStatusEditTask] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
-  const userTasks = getUserTasks();
+  const userTasksAll = getUserTasks();
+  const userTasks = (userTasksAll || []).filter((t) => {
+    if (!t) return false;
+    const me = user?.username?.toLowerCase();
+    if (!me) return false;
+    if (Array.isArray(t.assignedTo)) {
+      return t.assignedTo.some((assignee) => assignee?.toLowerCase() === me);
+    }
+    return t.assignedTo?.toLowerCase() === me;
+  });
   const activityLogs = getUserActivity ? getUserActivity() : [];
 
   // Fetch teams where the user is a member
@@ -72,12 +88,7 @@ export default function UserPage() {
   };
 
   const handleEdit = (task) => {
-    setEditingTaskId(task.id);
-    setUpdatedTask({
-      title: task.title || "",
-      description: task.description || "",
-      status: task.status || "To Do",
-    });
+    setStatusEditTask(task);
   };
 
   const handleSave = (id) => {
@@ -85,11 +96,22 @@ export default function UserPage() {
     setEditingTaskId(null);
   };
 
+  const handleStatusSave = (newStatus) => {
+    if (statusEditTask) {
+      updateTask(statusEditTask.id, { status: newStatus });
+    }
+  };
+
   const handleDelete = (id) => {
     if (user.role === "admin") {
-      if (window.confirm("Are you sure you want to delete this task?")) {
-        deleteTask(id);
-      }
+      setConfirmDialog({
+        message: "Delete this task? This cannot be undone.",
+        onConfirm: () => {
+          deleteTask(id);
+          setConfirmDialog(null);
+        },
+        onCancel: () => setConfirmDialog(null),
+      });
     } else {
       alert("Only admins can delete tasks.");
     }
@@ -97,9 +119,10 @@ export default function UserPage() {
 
   const menuItems = [
     { key: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-    { key: "tasks", label: "My Tasks", icon: <CheckSquare size={18} /> },
+    // Moved "My Teams" above "My Tasks"
     { key: "myTeams", label: "My Teams", icon: <Users size={18} /> },
-    { key: "groupTasks", label: "Group Tasks", icon: <Users size={18} /> },
+    { key: "tasks", label: "My Tasks", icon: <CheckSquare size={18} /> },
+    { key: "groupTasks", label: "Team Tasks", icon: <Users size={18} /> },
     { key: "activity", label: "Activity Log", icon: <Activity size={18} /> },
   ];
 
@@ -185,7 +208,7 @@ export default function UserPage() {
               {activeTab === "dashboard" && "Dashboard"}
               {activeTab === "tasks" && "My Tasks"}
               {activeTab === "myTeams" && "My Teams"}
-              {activeTab === "groupTasks" && "Group Tasks"}
+              {activeTab === "groupTasks" && "Team Tasks"}
               {activeTab === "activity" && "Activity Log"}
             </h1>
           </div>
@@ -193,7 +216,7 @@ export default function UserPage() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 pb-40">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">
             👋 Welcome, {user?.username || "User"}!
           </h1>
@@ -214,16 +237,13 @@ export default function UserPage() {
           individualTasks={individualTasks}
           editingTaskId={editingTaskId}
           updatedTask={updatedTask}
-          commentInput={commentInput}
-          openCommentsTaskId={openCommentsTaskId}
           setUpdatedTask={setUpdatedTask}
-          setCommentInput={setCommentInput}
           setEditingTaskId={setEditingTaskId}
-          setOpenCommentsTaskId={setOpenCommentsTaskId}
           handleEdit={handleEdit}
           handleSave={handleSave}
           handleDelete={handleDelete}
-          addComment={addComment}
+          onOpenComments={(task) => setCommentModalTask(task)}
+          onSelectTask={(task) => setSelectedTask(task)}
           user={user}
         />
       )}
@@ -235,16 +255,13 @@ export default function UserPage() {
           groupTasks={groupTasks}
           editingTaskId={editingTaskId}
           updatedTask={updatedTask}
-          commentInput={commentInput}
-          openCommentsTaskId={openCommentsTaskId}
           setUpdatedTask={setUpdatedTask}
-          setCommentInput={setCommentInput}
           setEditingTaskId={setEditingTaskId}
-          setOpenCommentsTaskId={setOpenCommentsTaskId}
           handleEdit={handleEdit}
           handleSave={handleSave}
           handleDelete={handleDelete}
-          addComment={addComment}
+          onOpenComments={(task) => setCommentModalTask(task)}
+          onSelectTask={(task) => setSelectedTask(task)}
           user={user}
         />
       )}
@@ -267,6 +284,63 @@ export default function UserPage() {
       )}
         </div>
       </div>
+
+      {/* Comments Modal */}
+      {commentModalTask && (
+        <CommentsModal
+          darkMode={darkMode}
+          task={commentModalTask}
+          commentInput={commentInput}
+          onChangeInput={setCommentInput}
+          onAdd={() => {
+            if (!commentInput.trim()) return;
+            const newComment = { 
+              id: Date.now(), 
+              text: commentInput.trim(), 
+              author: user.username, 
+              time: new Date().toISOString() 
+            };
+            addComment(commentModalTask.id, newComment);
+            setCommentInput("");
+            setCommentModalTask((prev) => ({ 
+              ...prev, 
+              comments: [...(prev.comments || []), newComment] 
+            }));
+          }}
+          onClose={() => {
+            setCommentModalTask(null);
+            setCommentInput("");
+          }}
+        />
+      )}
+
+      {/* Task Details Modal */}
+      {selectedTask && (
+        <TaskDetailsModal 
+          darkMode={darkMode} 
+          task={selectedTask} 
+          onClose={() => setSelectedTask(null)} 
+        />
+      )}
+
+      {/* Status Edit Modal */}
+      {statusEditTask && (
+        <StatusEditModal
+          darkMode={darkMode}
+          task={statusEditTask}
+          onClose={() => setStatusEditTask(null)}
+          onSave={handleStatusSave}
+        />
+      )}
+
+      {confirmDialog && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          darkMode={darkMode}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={confirmDialog.onCancel}
+        />
+      )}
     </div>
   );
 }

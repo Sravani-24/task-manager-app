@@ -40,7 +40,7 @@ const Login = () => {
       <div className={`hidden lg:flex lg:w-1/2 relative overflow-hidden ${
         darkMode 
           ? "bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900" 
-          : "bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600"
+          : "bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400"
       }`}>
         {/* Animated Background Pattern */}
         <div className="absolute inset-0 opacity-10">
@@ -189,7 +189,11 @@ const Login = () => {
               {/* Login Button */}
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 group"
+                className={`w-full py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 group ${
+                  darkMode
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                    : "bg-gradient-to-r from-blue-400 to-indigo-400 hover:from-blue-500 hover:to-indigo-500 text-white"
+                }`}
               >
                 Sign In
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
@@ -215,7 +219,9 @@ const Login = () => {
               <div className="text-center">
                 <Link 
                   to="/register" 
-                  className={`text-blue-600 hover:text-blue-700 font-semibold text-sm hover:underline transition-colors`}
+                  className={`font-semibold text-sm hover:underline transition-colors ${
+                    darkMode ? "text-blue-400 hover:text-blue-300" : "text-blue-500 hover:text-blue-600"
+                  }`}
                 >
                   Create a new account →
                 </Link>

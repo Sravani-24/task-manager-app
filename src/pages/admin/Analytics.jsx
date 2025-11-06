@@ -16,6 +16,7 @@ export default function Analytics() {
 
   // Fetch users from Firestore
   const [firestoreUsers, setFirestoreUsers] = useState([]);
+  const [userRefreshKey, setUserRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -24,44 +25,35 @@ export default function Analytics() {
       setFirestoreUsers(usersList);
     };
     fetchUsers();
+  }, [userRefreshKey]);
+
+  // Refresh users list periodically or when tasks change
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUserRefreshKey(prev => prev + 1);
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
-  // Build a list of users from tasks (creators and assignees), filtered to exclude admins and deleted users
+  // Build user list directly from Firestore users (excluding admins and deleted users)
   const allUsers = useMemo(() => {
-    const normMap = new Map();
-    const push = (name) => {
-      if (!name) return;
-      const trimmed = String(name).trim();
-      if (!trimmed) return;
-      const norm = trimmed.toLowerCase();
-      if (!normMap.has(norm)) {
-        const display = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-        normMap.set(norm, display);
-      }
-    };
-    (tasks || []).forEach((t) => {
-      push(t.user);
-      if (Array.isArray(t.assignedTo)) {
-        t.assignedTo.forEach(push);
-      } else if (typeof t.assignedTo === "string") {
-        push(t.assignedTo);
-      }
-    });
-
-    // Get valid usernames from Firestore (excluding admins)
-    const validUsernames = new Set(
-      firestoreUsers
-        .filter(u => u.role?.toLowerCase() !== "admin")
-        .map(u => u.username?.toLowerCase())
-    );
-
-    // Filter to only include users that exist in Firestore and are not admins
-    const list = Array.from(normMap, ([value, label]) => ({ value, label }))
-      .filter(item => validUsernames.has(item.value))
+    // Get valid users from Firestore (excluding admins)
+    const validUsers = firestoreUsers
+      .filter(u => {
+        const role = u.role?.toLowerCase();
+        const username = u.username?.trim();
+        // Exclude admins, deleted users, and users without valid usernames
+        return role !== "admin" && username && username !== "" && username.toLowerCase() !== "deleted user";
+      })
+      .map(u => ({
+        value: u.username.toLowerCase(),
+        label: u.username.charAt(0).toUpperCase() + u.username.slice(1)
+      }))
       .sort((a, b) => a.label.localeCompare(b.label));
     
-    return [{ value: "All Users", label: "All Users" }, ...list];
-  }, [tasks, firestoreUsers]);
+    return [{ value: "All Users", label: "All Users" }, ...validUsers];
+  }, [firestoreUsers]);
 
   // Individual user filters per chart
   const [statusUser, setStatusUser] = useState("All Users");
@@ -109,6 +101,10 @@ export default function Analytics() {
     ];
   }, [tasks, statusUser]);
 
+  const hasStatusData = useMemo(() => {
+    return statusData.some(item => item.count > 0);
+  }, [statusData]);
+
   // Tasks by priority
   // Priority chart (filtered by priorityUser)
   const priorityData = useMemo(() => {
@@ -119,13 +115,21 @@ export default function Analytics() {
     }));
   }, [tasks, priorityUser]);
 
+  const hasPriorityData = useMemo(() => {
+    return priorityData.some(item => item.count > 0);
+  }, [priorityData]);
+
   // Task completion trend
   // (Trend chart removed as requested)
 
   return (
     <div className="space-y-6 h-full">
       {/* Header */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-600/10 via-blue-500/10 to-purple-600/10 border border-indigo-200/40 dark:border-indigo-800/40">
+      <div className={`p-4 sm:p-5 rounded-2xl shadow-lg bg-gradient-to-br ${
+        darkMode 
+          ? "from-blue-900/20 via-gray-800 to-purple-900/20 border border-gray-700" 
+          : "from-blue-100/50 via-indigo-50/30 to-purple-100/50 border border-blue-200/50"
+      }`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="lg:min-w-[200px]">
             <h1 className={`text-2xl font-semibold ${darkMode ? "text-gray-100" : "text-gray-900"}`}>Analytics</h1>
@@ -146,39 +150,71 @@ export default function Analytics() {
       {/* Tiles moved up beside the heading */}
 
       {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pb-16">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 pb-16">
         {/* Status Pie Chart */}
-        <div className={`shadow rounded-2xl p-4 border ${darkMode ? "bg-gray-900/60 border-gray-800/60" : "bg-white border-gray-200"}`}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className={`font-semibold ${darkMode ? "text-gray-200" : "text-gray-900"}`}>Tasks by Status</h3>
+        <div className={`shadow rounded-2xl p-3 sm:p-4 border ${darkMode ? "bg-gray-900/60 border-gray-800/60" : "bg-white border-gray-200"}`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
+            <h3 className={`font-semibold text-sm sm:text-base ${darkMode ? "text-gray-200" : "text-gray-900"}`}>Tasks by Status</h3>
             <UserSelect options={allUsers} value={statusUser} onChange={setStatusUser} />
           </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={statusData} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={80} label>
-                {statusData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Legend wrapperStyle={{ color: darkMode ? "#e5e7eb" : "#1f2937" }} />
-            </PieChart>
-          </ResponsiveContainer>
+          {hasStatusData ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={statusData} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={80} label>
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Legend wrapperStyle={{ color: darkMode ? "#e5e7eb" : "#1f2937", fontSize: "12px" }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[250px]">
+              <div className="text-center">
+                <div className={`text-4xl sm:text-5xl mb-3`}>📊</div>
+                <p className={`text-base sm:text-lg font-medium ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  No tasks found
+                </p>
+                <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  {statusUser === "All Users" 
+                    ? "No tasks have been created yet" 
+                    : `No tasks assigned to ${statusUser}`}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Priority Bar Chart */}
-        <div className={`shadow rounded-2xl p-4 border ${darkMode ? "bg-gray-900/60 border-gray-800/60" : "bg-white border-gray-200"}`}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className={`font-semibold ${darkMode ? "text-gray-200" : "text-gray-900"}`}>Tasks by Priority</h3>
+        <div className={`shadow rounded-2xl p-3 sm:p-4 border ${darkMode ? "bg-gray-900/60 border-gray-800/60" : "bg-white border-gray-200"}`}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
+            <h3 className={`font-semibold text-sm sm:text-base ${darkMode ? "text-gray-200" : "text-gray-900"}`}>Tasks by Priority</h3>
             <UserSelect options={allUsers} value={priorityUser} onChange={setPriorityUser} />
           </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={priorityData}>
-              <XAxis dataKey="priority" tick={{ fill: darkMode ? "#e5e7eb" : "#1f2937" }} />
-              <YAxis tick={{ fill: darkMode ? "#e5e7eb" : "#1f2937" }} />
-              <Tooltip contentStyle={{ backgroundColor: darkMode ? "#111827" : "#ffffff", borderColor: darkMode ? "#d1d5db" : "#e5e7eb", color: darkMode ? "#e5e7eb" : "#1f2937" }} />
-              <Bar dataKey="count" fill="#00C49F" />
-            </BarChart>
-          </ResponsiveContainer>
+          {hasPriorityData ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={priorityData}>
+                <XAxis dataKey="priority" tick={{ fill: darkMode ? "#e5e7eb" : "#1f2937" }} style={{ fontSize: "12px" }} />
+                <YAxis tick={{ fill: darkMode ? "#e5e7eb" : "#1f2937" }} style={{ fontSize: "12px" }} />
+                <Tooltip contentStyle={{ backgroundColor: darkMode ? "#111827" : "#ffffff", borderColor: darkMode ? "#d1d5db" : "#e5e7eb", color: darkMode ? "#e5e7eb" : "#1f2937", fontSize: "12px" }} />
+                <Bar dataKey="count" fill="#00C49F" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[250px]">
+              <div className="text-center">
+                <div className={`text-4xl sm:text-5xl mb-3`}>📊</div>
+                <p className={`text-base sm:text-lg font-medium ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+                  No tasks found
+                </p>
+                <p className={`text-sm ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                  {priorityUser === "All Users" 
+                    ? "No tasks have been created yet" 
+                    : `No tasks assigned to ${priorityUser}`}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -194,11 +230,16 @@ function UserSelect({ options, value, onChange }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        size="1"
         className={`appearance-none pl-7 pr-8 py-1.5 text-sm rounded-lg border-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
           darkMode 
             ? "bg-gray-800/70 border-gray-700 text-gray-200" 
             : "bg-white border-gray-300 text-gray-900"
         }`}
+        style={{
+          maxHeight: '200px',
+          overflowY: 'auto'
+        }}
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>

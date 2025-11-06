@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import ConfirmDialog from "../../components/ConfirmDialog";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { useTasks } from "../../context/TaskContext";
 import { useAuth } from "../../context/AuthContext";
 import { Activity, Trash2 } from "lucide-react";
