@@ -11,7 +11,6 @@ export default function TaskFilters({
   filterUser,
   setFilterUser,
   usersList,
-  // Optional visibility flags to allow reuse in user pages
   showStatus = true,
   showType = true,
   showPriority = true,

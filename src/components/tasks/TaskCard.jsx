@@ -3,7 +3,6 @@ import { UserCircle } from "lucide-react";
 
 /**
  * Unified TaskCard component for both Admin and User views
- * Supports inline editing, comments, and customizable actions
  */
 function TaskCard({
   task,
@@ -23,7 +22,6 @@ function TaskCard({
   onAddComment,
   onSelectTask,
   currentUser,
-  // Bulk selection
   bulkMode = false,
   selected = false,
   onToggleSelect,
